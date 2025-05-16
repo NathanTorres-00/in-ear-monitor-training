@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Volume2, MessageSquare, HelpCircle, Award, PlayCircle, Menu, X, Headphones, Sliders, Settings, Info, Upload, Play, Pause, SkipBack } from 'lucide-react';
+import { Volume2, MessageSquare, HelpCircle, Award, PlayCircle, Menu, X, Headphones, Sliders, Settings, Info, Upload, Play, Pause, SkipBack, ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function InEarMonitorApp() {
   const [activeTab, setActiveTab] = useState('learn');
   const [activeTopic, setActiveTopic] = useState('intro');
   const [showMenu, setShowMenu] = useState(false);
+  const [showUploadSection, setShowUploadSection] = useState(true);
   const [sliderValues, setSliderValues] = useState({
     vocals: 75,
     click: 70,
@@ -16,6 +17,7 @@ export default function InEarMonitorApp() {
     backgroundVocals: 50,
     acousticGuitar: 55,
     electricGuitar: 50,
+    electricGuitar2: 50,
     percussion: 45,
     synth: 45,
     tracks: 40,
@@ -33,6 +35,7 @@ export default function InEarMonitorApp() {
     backgroundVocals: -20,
     acousticGuitar: 40,
     electricGuitar: -40,
+    electricGuitar2: 40,
     percussion: 30,
     synth: -30,
     tracks: 0
@@ -532,6 +535,24 @@ export default function InEarMonitorApp() {
       (sliderValues.master > 75 && sliderValues[channel] > 70);
   };
   
+  // Add instrument labels
+  const channelLabels = {
+    vocals: "Lead Vocals",
+    click: "Click Track",
+    md: "Metronome",
+    drums: "Drums",
+    bass: "Bass Guitar",
+    keys: "Keyboards",
+    leadVocals: "Lead Vocals",
+    backgroundVocals: "Background Vocals",
+    acousticGuitar: "Acoustic Guitar",
+    electricGuitar: "Electric Guitar 1",
+    electricGuitar2: "Electric Guitar 2",
+    percussion: "Percussion",
+    synth: "Synth",
+    tracks: "Backing Tracks"
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
@@ -706,133 +727,142 @@ export default function InEarMonitorApp() {
                 </div>
               )}
               
-              {/* Audio Upload Section */}
+              {/* Audio Upload Section - Now Collapsible */}
               <div className="bg-white rounded-lg p-6 shadow mb-6">
-                <h3 className="text-xl font-semibold mb-4">Audio Track Upload</h3>
-                <p className="mb-4 text-gray-600">Upload audio stems to practice your mixing skills. Upload multiple tracks to create a full mix.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {['vocals', 'drums', 'bass', 'keys', 'acousticGuitar', 'electricGuitar', 'percussion', 'synth'].map(channel => {
-                    const displayName = channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                    return (
-                      <div key={channel} className="border rounded-lg p-4">
-                        <h4 className="font-medium mb-2">{displayName}</h4>
-                        <div className="flex items-center">
-                          <label className={`flex items-center justify-center px-4 py-2 rounded-md cursor-pointer transition-colors ${audioFiles[channel] ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                            <Upload size={16} className="mr-2" />
-                            <span>{audioFiles[channel] ? 'Change' : 'Upload'}</span>
-                            <input 
-                              type="file" 
-                              accept="audio/*" 
-                              className="hidden" 
-                              onChange={(e) => handleFileUpload(channel, e)} 
-                            />
-                          </label>
-                          {audioFiles[channel] && (
-                            <span className="ml-2 text-sm text-gray-500 truncate max-w-xs">
-                              {audioFiles[channel].name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setShowUploadSection(!showUploadSection)}>
+                  <h3 className="text-xl font-semibold">Audio Track Upload</h3>
+                  <button className="text-gray-500 hover:text-gray-700">
+                    {showUploadSection ? <ChevronUp /> : <ChevronDown />}
+                  </button>
                 </div>
                 
-                {Object.keys(audioFiles).length > 0 && (
-                  <div className="mt-4 bg-blue-50 p-4 rounded-lg text-sm">
-                    <p className="font-medium text-blue-800 mb-1">Tips for Using Uploaded Audio:</p>
-                    <ul className="list-disc pl-5 text-blue-700">
-                      <li>Adjust the sliders below to mix your tracks</li>
-                      <li>Use the playback controls to listen to your mix</li>
-                      <li>Try different panning positions for better separation</li>
-                      <li>Keep your master volume in the optimal range (50-75%)</li>
-                    </ul>
-                  </div>
+                {showUploadSection && (
+                  <>
+                    <p className="mb-4 text-gray-600">Upload audio stems to practice your mixing skills. Upload multiple tracks to create a full mix.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {['vocals', 'drums', 'bass', 'keys', 'acousticGuitar', 'electricGuitar', 'electricGuitar2', 'percussion', 'synth'].map(channel => (
+                        <div key={channel} className="border rounded-lg p-4">
+                          <h4 className="font-medium mb-2">{channelLabels[channel] || channel}</h4>
+                          <div className="flex items-center">
+                            <label className={`flex items-center justify-center px-4 py-2 rounded-md cursor-pointer transition-colors ${audioFiles[channel] ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                              <Upload size={16} className="mr-2" />
+                              <span>{audioFiles[channel] ? 'Change' : 'Upload'}</span>
+                              <input 
+                                type="file" 
+                                accept="audio/*" 
+                                className="hidden" 
+                                onChange={(e) => handleFileUpload(channel, e)} 
+                              />
+                            </label>
+                            {audioFiles[channel] && (
+                              <span className="ml-2 text-sm text-gray-500 truncate max-w-xs">
+                                {audioFiles[channel].name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {Object.keys(audioFiles).length > 0 && (
+                      <div className="mt-4 bg-blue-50 p-4 rounded-lg text-sm">
+                        <p className="font-medium text-blue-800 mb-1">Tips for Using Uploaded Audio:</p>
+                        <ul className="list-disc pl-5 text-blue-700">
+                          <li>Adjust the sliders below to mix your tracks</li>
+                          <li>Use the playback controls to listen to your mix</li>
+                          <li>Try different panning positions for better separation</li>
+                          <li>Keep your master volume in the optimal range (50-75%)</li>
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               
               <div className="bg-white rounded-lg p-6 shadow">
                 <h3 className="text-xl font-semibold mb-4">Channel Mix</h3>
                 
-                <div className="flex flex-col space-y-6">{Object.keys(sliderValues).filter(key => key !== 'master').map((channel) => {
-                    const displayName = channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                    return (
-                      <div key={channel} className={`border rounded-lg p-4 transition-all ${activeChannel === channel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="font-medium">{displayName}</h4>
-                          <div className="flex items-center">
-                            {isClipping(channel) && (
-                              <span className="text-red-600 mr-2 font-bold text-sm animate-pulse">
-                                CLIPPING!
-                              </span>
-                            )}
-                            <button 
-                              className={`px-3 py-1 rounded-md text-sm transition-colors ${activeChannel === channel ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 hover:bg-gray-300'}`}
-                              onClick={() => setActiveChannel(activeChannel === channel ? null : channel)}
-                            >
-                              {activeChannel === channel ? 'Done' : 'Adjust'}
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {activeChannel === channel ? (
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm text-gray-500 mb-1">Volume</label>
-                              <input 
-                                type="range" 
-                                min="0" 
-                                max="100" 
-                                value={sliderValues[channel]}
-                                onChange={(e) => handleSliderChange(channel, e.target.value)}
-                                className="w-full"
-                              />
-                              <div className="flex justify-between text-sm">
-                                <span>0%</span>
-                                <span className={isClipping(channel) ? 'text-red-600 font-bold' : ''}>
-                                  {sliderValues[channel]}%
+                <div className="flex flex-col space-y-6">
+                  {Object.keys(sliderValues)
+                    .filter(key => key !== 'master')
+                    .map((channel) => {
+                      return (
+                        <div key={channel} className={`border rounded-lg p-4 transition-all ${activeChannel === channel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-medium">{channelLabels[channel] || channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h4>
+                            <div className="flex items-center">
+                              {isClipping(channel) && (
+                                <span className="text-red-600 mr-2 font-bold text-sm animate-pulse">
+                                  CLIPPING!
                                 </span>
-                                <span>100%</span>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <label className="block text-sm text-gray-500 mb-1">Panning</label>
-                              <input 
-                                type="range" 
-                                min="-100" 
-                                max="100" 
-                                value={panning[channel]}
-                                onChange={(e) => handlePanningChange(channel, e.target.value)}
-                                className="w-full"
-                              />
-                              <div className="flex justify-between text-sm">
-                                <span>L</span>
-                                <span>{panning[channel] === 0 ? 'Center' : panning[channel] < 0 ? `${Math.abs(panning[channel])}% L` : `${panning[channel]}% R`}</span>
-                                <span>R</span>
-                              </div>
+                              )}
+                              <button 
+                                className={`px-3 py-1 rounded-md text-sm transition-colors ${activeChannel === channel ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                onClick={() => setActiveChannel(activeChannel === channel ? null : channel)}
+                              >
+                                {activeChannel === channel ? 'Done' : 'Adjust'}
+                              </button>
                             </div>
                           </div>
-                        ) : (
-                          <div className="flex items-center">
-                            <div className="w-16 text-center text-sm mr-2">
-                              {panning[channel] < 0 ? 'L' : panning[channel] > 0 ? 'R' : 'C'}
+                          
+                          {activeChannel === channel ? (
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm text-gray-500 mb-1">Volume</label>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="100" 
+                                  value={sliderValues[channel]}
+                                  onChange={(e) => handleSliderChange(channel, e.target.value)}
+                                  className="w-full"
+                                />
+                                <div className="flex justify-between text-sm">
+                                  <span>0%</span>
+                                  <span className={isClipping(channel) ? 'text-red-600 font-bold' : ''}>
+                                    {sliderValues[channel]}%
+                                  </span>
+                                  <span>100%</span>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-sm text-gray-500 mb-1">Panning</label>
+                                <input 
+                                  type="range" 
+                                  min="-100" 
+                                  max="100" 
+                                  value={panning[channel]}
+                                  onChange={(e) => handlePanningChange(channel, e.target.value)}
+                                  className="w-full"
+                                />
+                                <div className="flex justify-between text-sm">
+                                  <span>L</span>
+                                  <span>{panning[channel] === 0 ? 'Center' : panning[channel] < 0 ? `${Math.abs(panning[channel])}% L` : `${panning[channel]}% R`}</span>
+                                  <span>R</span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full ${getVolumeColor(sliderValues[channel])} transition-all`}
-                                style={{ width: `${sliderValues[channel]}%` }}
-                              ></div>
+                          ) : (
+                            <div className="flex items-center">
+                              <div className="w-16 text-center text-sm mr-2">
+                                {panning[channel] < 0 ? 'L' : panning[channel] > 0 ? 'R' : 'C'}
+                              </div>
+                              <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${getVolumeColor(sliderValues[channel])} transition-all`}
+                                  style={{ width: `${sliderValues[channel]}%` }}
+                                ></div>
+                              </div>
+                              <div className="w-12 text-right text-sm ml-2">
+                                {sliderValues[channel]}%
+                              </div>
                             </div>
-                            <div className="w-12 text-right text-sm ml-2">
-                              {sliderValues[channel]}%
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
