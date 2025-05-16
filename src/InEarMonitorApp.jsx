@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Volume2, MessageSquare, HelpCircle, Award, PlayCircle, Menu, X, Headphones, Sliders, Settings, Info, Upload, Play, Pause, SkipBack, ChevronUp, ChevronDown } from 'lucide-react';
+import { Volume2, MessageSquare, HelpCircle, Award, PlayCircle, Menu, X, Headphones, Sliders, Settings, Info, Upload, Play, Pause, SkipBack, ChevronUp, ChevronDown, Music } from 'lucide-react';
 
 export default function InEarMonitorApp() {
   const [activeTab, setActiveTab] = useState('learn');
@@ -522,11 +522,47 @@ export default function InEarMonitorApp() {
     },
   };
 
-  // Function to get a color based on slider value
+  // Group channels by type for better organization
+  const channelGroups = {
+    vocals: ['vocals', 'leadVocals', 'backgroundVocals'],
+    rhythm: ['drums', 'bass', 'acousticGuitar', 'electricGuitar', 'electricGuitar2'],
+    melodic: ['keys', 'synth'],
+    utility: ['click', 'md', 'tracks', 'percussion']
+  };
+
+  // Enhance the channel labels with emojis for visual cues
+  const channelLabels = {
+    vocals: "🎤 Lead Vocals",
+    click: "🎯 Click Track",
+    md: "🎼 Metronome",
+    drums: "🥁 Drums",
+    bass: "🎸 Bass Guitar",
+    keys: "🎹 Keyboards",
+    leadVocals: "🎤 Lead Vocals",
+    backgroundVocals: "🎤 Background Vocals",
+    acousticGuitar: "🪕 Acoustic Guitar",
+    electricGuitar: "🎸 Electric Guitar 1",
+    electricGuitar2: "🎸 Electric Guitar 2",
+    percussion: "🪘 Percussion",
+    synth: "🎛️ Synth",
+    tracks: "💿 Backing Tracks"
+  };
+
+  // Get color for channel based on type
+  const getChannelColor = (channel) => {
+    if (channelGroups.vocals.includes(channel)) return 'blue';
+    if (channelGroups.rhythm.includes(channel)) return 'green';
+    if (channelGroups.melodic.includes(channel)) return 'purple';
+    if (channelGroups.utility.includes(channel)) return 'orange';
+    return 'gray';
+  };
+
+  // Get volume color with improved visual feedback
   const getVolumeColor = (value) => {
     if (value > 85) return 'bg-red-500';
     if (value > 70) return 'bg-yellow-500';
-    return 'bg-green-500';
+    if (value > 50) return 'bg-green-500';
+    return 'bg-blue-400';
   };
 
   // Determine if channel is clipping
@@ -535,110 +571,97 @@ export default function InEarMonitorApp() {
       (sliderValues.master > 75 && sliderValues[channel] > 70);
   };
   
-  // Add instrument labels
-  const channelLabels = {
-    vocals: "Lead Vocals",
-    click: "Click Track",
-    md: "Metronome",
-    drums: "Drums",
-    bass: "Bass Guitar",
-    keys: "Keyboards",
-    leadVocals: "Lead Vocals",
-    backgroundVocals: "Background Vocals",
-    acousticGuitar: "Acoustic Guitar",
-    electricGuitar: "Electric Guitar 1",
-    electricGuitar2: "Electric Guitar 2",
-    percussion: "Percussion",
-    synth: "Synth",
-    tracks: "Backing Tracks"
-  };
-  
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-blue-700 text-white p-4 flex justify-between items-center">
+      {/* Header - Enhanced with gradient and better styling */}
+      <header className="bg-gradient-to-r from-blue-700 to-blue-900 text-white p-4 shadow-md flex justify-between items-center">
         <div className="flex items-center">
-          <Headphones className="mr-2" />
+          <div className="bg-white text-blue-700 p-2 rounded-full mr-3">
+            <Headphones className="w-5 h-5" />
+          </div>
           <h1 className="text-xl font-bold">In-Ear Monitor Training</h1>
         </div>
         <button 
-          className="md:hidden"
+          className="md:hidden bg-blue-800 hover:bg-blue-900 p-2 rounded-full transition-colors"
           onClick={() => setShowMenu(!showMenu)}
         >
           {showMenu ? <X /> : <Menu />}
         </button>
       </header>
       
-      {/* Mobile Menu */}
+      {/* Mobile Menu - Enhanced with better styling */}
       {showMenu && (
-        <div className="md:hidden bg-blue-800 text-white">
+        <div className="md:hidden bg-blue-800 text-white shadow-lg z-10 relative">
           <div 
-            className={`p-3 ${activeTab === 'learn' ? 'bg-blue-900' : ''}`}
+            className={`p-4 flex items-center ${activeTab === 'learn' ? 'bg-blue-900 border-l-4 border-white' : 'hover:bg-blue-700'}`}
             onClick={() => {setActiveTab('learn'); setShowMenu(false);}}
           >
-            <Info className="inline mr-2" size={16} />
-            Learn
+            <Info className="mr-3" size={18} />
+            <span className="font-medium">Learn</span>
           </div>
           <div 
-            className={`p-3 ${activeTab === 'simulator' ? 'bg-blue-900' : ''}`}
+            className={`p-4 flex items-center ${activeTab === 'simulator' ? 'bg-blue-900 border-l-4 border-white' : 'hover:bg-blue-700'}`}
             onClick={() => {setActiveTab('simulator'); setShowMenu(false);}}
           >
-            <Sliders className="inline mr-2" size={16} />
-            Simulator
+            <Sliders className="mr-3" size={18} />
+            <span className="font-medium">Simulator</span>
           </div>
           <div 
-            className={`p-3 ${activeTab === 'quiz' ? 'bg-blue-900' : ''}`}
+            className={`p-4 flex items-center ${activeTab === 'quiz' ? 'bg-blue-900 border-l-4 border-white' : 'hover:bg-blue-700'}`}
             onClick={() => {setActiveTab('quiz'); setShowMenu(false);}}
           >
-            <Award className="inline mr-2" size={16} />
-            Quiz
+            <Award className="mr-3" size={18} />
+            <span className="font-medium">Quiz</span>
           </div>
           <div 
-            className={`p-3 ${activeTab === 'help' ? 'bg-blue-900' : ''}`}
+            className={`p-4 flex items-center ${activeTab === 'help' ? 'bg-blue-900 border-l-4 border-white' : 'hover:bg-blue-700'}`}
             onClick={() => {setActiveTab('help'); setShowMenu(false);}}
           >
-            <MessageSquare className="inline mr-2" size={16} />
-            Help
+            <MessageSquare className="mr-3" size={18} />
+            <span className="font-medium">Help</span>
           </div>
         </div>
       )}
       
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Hidden on mobile */}
-        <div className="hidden md:flex md:w-56 bg-gray-800 text-white flex-col">
+        {/* Sidebar - Hidden on mobile, enhanced with better styling */}
+        <div className="hidden md:flex md:w-64 bg-gradient-to-b from-gray-800 to-gray-900 text-white flex-col shadow-xl">
+          <div className="p-4 border-b border-gray-700 mb-4">
+            <h2 className="font-bold text-lg">Navigation</h2>
+          </div>
           <div 
-            className={`p-4 flex items-center cursor-pointer ${activeTab === 'learn' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}
+            className={`mx-3 mb-2 p-3 flex items-center rounded-lg cursor-pointer transition-all ${activeTab === 'learn' ? 'bg-blue-600 shadow-md' : 'hover:bg-gray-700'}`}
             onClick={() => setActiveTab('learn')}
           >
-            <Info className="mr-2" size={18} />
-            <span>Learn</span>
+            <Info className="mr-3" size={20} />
+            <span className="font-medium">Learn</span>
           </div>
           <div 
-            className={`p-4 flex items-center cursor-pointer ${activeTab === 'simulator' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}
+            className={`mx-3 mb-2 p-3 flex items-center rounded-lg cursor-pointer transition-all ${activeTab === 'simulator' ? 'bg-blue-600 shadow-md' : 'hover:bg-gray-700'}`}
             onClick={() => setActiveTab('simulator')}
           >
-            <Sliders className="mr-2" size={18} />
-            <span>Mix Simulator</span>
+            <Sliders className="mr-3" size={20} />
+            <span className="font-medium">Mix Simulator</span>
           </div>
           <div 
-            className={`p-4 flex items-center cursor-pointer ${activeTab === 'quiz' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}
+            className={`mx-3 mb-2 p-3 flex items-center rounded-lg cursor-pointer transition-all ${activeTab === 'quiz' ? 'bg-blue-600 shadow-md' : 'hover:bg-gray-700'}`}
             onClick={() => setActiveTab('quiz')}
           >
-            <Award className="mr-2" size={18} />
-            <span>Quiz</span>
+            <Award className="mr-3" size={20} />
+            <span className="font-medium">Quiz</span>
           </div>
           <div 
-            className={`p-4 flex items-center cursor-pointer ${activeTab === 'help' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}
+            className={`mx-3 mb-2 p-3 flex items-center rounded-lg cursor-pointer transition-all ${activeTab === 'help' ? 'bg-blue-600 shadow-md' : 'hover:bg-gray-700'}`}
             onClick={() => setActiveTab('help')}
           >
-            <MessageSquare className="mr-2" size={18} />
-            <span>Help</span>
+            <MessageSquare className="mr-3" size={20} />
+            <span className="font-medium">Help</span>
           </div>
         </div>
         
         {/* Content Area */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto bg-gray-50">
           {activeTab === 'learn' && (
             <div className="p-6">
               <div className="flex mb-6 overflow-x-auto pb-2">
@@ -663,89 +686,120 @@ export default function InEarMonitorApp() {
           
           {activeTab === 'simulator' && (
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Mix Simulator</h2>
+              <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center">
+                <Sliders className="mr-2" /> Mix Simulator
+              </h2>
               
-              <div className="bg-white rounded-lg p-6 shadow mb-6">
+              {/* Master Volume - Enhanced with better visual feedback */}
+              <div className="bg-white rounded-lg p-6 shadow-md mb-8 border-l-4 border-blue-600">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold">Master Volume</h3>
-                  <div className={`px-2 py-1 rounded ${sliderValues.master > 75 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                  <h3 className="text-xl font-semibold flex items-center">
+                    <Volume2 className="mr-2 text-blue-600" />
+                    Master Volume
+                  </h3>
+                  <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${sliderValues.master > 75 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
                     {sliderValues.master > 75 ? 'Too High!' : 'Good Level'}
                   </div>
                 </div>
                 
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="100" 
-                  value={sliderValues.master}
-                  onChange={(e) => handleSliderChange('master', e.target.value)}
-                  className="w-full mb-2"
-                />
-                <div className="flex justify-between">
-                  <span>0%</span>
-                  <span className={sliderValues.master > 75 ? 'text-red-600 font-bold' : ''}>
+                <div className="relative">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value={sliderValues.master}
+                    onChange={(e) => handleSliderChange('master', e.target.value)}
+                    className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="absolute -bottom-6 left-0 w-full flex justify-between text-xs text-gray-500">
+                    <span>0%</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                <div className="mt-8 flex justify-center">
+                  <span className={`text-2xl font-bold ${sliderValues.master > 75 ? 'text-red-600' : 'text-blue-600'}`}>
                     {sliderValues.master}%
                   </span>
-                  <span>100%</span>
                 </div>
               </div>
               
-              {/* Audio Player Controls */}
+              {/* Audio Player Controls - Enhanced with better styling */}
               {Object.keys(audioFiles).length > 0 && (
-                <div className="bg-white rounded-lg p-6 shadow mb-6">
-                  <h3 className="text-xl font-semibold mb-4">Audio Playback</h3>
+                <div className="bg-white rounded-lg p-6 shadow-md mb-8">
+                  <h3 className="text-xl font-semibold mb-4 flex items-center">
+                    <Music className="mr-2 text-purple-600" />
+                    Audio Playback
+                  </h3>
                   
-                  <div className="flex items-center mb-4">
-                    <button 
-                      className="bg-blue-600 text-white p-2 rounded-full mr-4 hover:bg-blue-700 transition-colors"
-                      onClick={playPause}
-                    >
-                      {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                    </button>
+                  <div className="flex flex-col md:flex-row items-center mb-4">
+                    <div className="flex space-x-3 mb-4 md:mb-0 md:mr-6">
+                      <button 
+                        className={`p-3 rounded-full shadow-md transition-all transform hover:scale-105 ${isPlaying ? 'bg-red-500 text-white' : 'bg-blue-600 text-white'}`}
+                        onClick={playPause}
+                      >
+                        {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                      </button>
+                      
+                      <button 
+                        className="bg-gray-200 text-gray-700 p-3 rounded-full shadow-md hover:bg-gray-300 transition-all transform hover:scale-105"
+                        onClick={resetPlayback}
+                      >
+                        <SkipBack size={24} />
+                      </button>
+                    </div>
                     
-                    <button 
-                      className="bg-gray-200 text-gray-700 p-2 rounded-full mr-4 hover:bg-gray-300 transition-colors"
-                      onClick={resetPlayback}
-                    >
-                      <SkipBack size={24} />
-                    </button>
-                    
-                    <div className="flex-1 flex items-center">
-                      <span className="mr-2 text-sm">{formatTime(currentTime)}</span>
-                      <input 
-                        ref={seekBarRef}
-                        type="range"
-                        min="0"
-                        max={duration || 100}
-                        value={currentTime}
-                        onChange={handleSeekChange}
-                        className="flex-1"
-                      />
-                      <span className="ml-2 text-sm">{formatTime(duration)}</span>
+                    <div className="flex-1 flex items-center w-full">
+                      <span className="mr-3 text-sm font-mono">{formatTime(currentTime)}</span>
+                      <div className="flex-1 relative">
+                        <input 
+                          ref={seekBarRef}
+                          type="range"
+                          min="0"
+                          max={duration || 100}
+                          value={currentTime}
+                          onChange={handleSeekChange}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div className="absolute -bottom-5 w-full flex justify-between">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        </div>
+                      </div>
+                      <span className="ml-3 text-sm font-mono">{formatTime(duration)}</span>
                     </div>
                   </div>
                 </div>
               )}
               
-              {/* Audio Upload Section - Now Collapsible */}
-              <div className="bg-white rounded-lg p-6 shadow mb-6">
-                <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setShowUploadSection(!showUploadSection)}>
-                  <h3 className="text-xl font-semibold">Audio Track Upload</h3>
-                  <button className="text-gray-500 hover:text-gray-700">
+              {/* Audio Upload Section - Now Collapsible with better styling */}
+              <div className="bg-white rounded-lg p-6 shadow-md mb-8 border-l-4 border-green-500">
+                <div 
+                  className="flex items-center justify-between mb-4 cursor-pointer" 
+                  onClick={() => setShowUploadSection(!showUploadSection)}
+                >
+                  <h3 className="text-xl font-semibold flex items-center">
+                    <Upload className="mr-2 text-green-600" />
+                    Audio Track Upload
+                  </h3>
+                  <button className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors">
                     {showUploadSection ? <ChevronUp /> : <ChevronDown />}
                   </button>
                 </div>
                 
                 {showUploadSection && (
                   <>
-                    <p className="mb-4 text-gray-600">Upload audio stems to practice your mixing skills. Upload multiple tracks to create a full mix.</p>
+                    <p className="mb-6 text-gray-600">Upload audio stems to practice your mixing skills. Upload multiple tracks to create a full mix.</p>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {['vocals', 'drums', 'bass', 'keys', 'acousticGuitar', 'electricGuitar', 'electricGuitar2', 'percussion', 'synth'].map(channel => (
-                        <div key={channel} className="border rounded-lg p-4">
-                          <h4 className="font-medium mb-2">{channelLabels[channel] || channel}</h4>
+                        <div key={channel} className={`border rounded-lg p-4 transition-all hover:shadow-md border-l-4 ${getChannelColor(channel) === 'blue' ? 'border-l-blue-500' : getChannelColor(channel) === 'green' ? 'border-l-green-500' : getChannelColor(channel) === 'purple' ? 'border-l-purple-500' : 'border-l-orange-500'}`}>
+                          <h4 className="font-medium mb-3">{channelLabels[channel] || channel}</h4>
                           <div className="flex items-center">
-                            <label className={`flex items-center justify-center px-4 py-2 rounded-md cursor-pointer transition-colors ${audioFiles[channel] ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                            <label className={`flex items-center justify-center px-4 py-2 rounded-md cursor-pointer transition-colors ${audioFiles[channel] ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}>
                               <Upload size={16} className="mr-2" />
                               <span>{audioFiles[channel] ? 'Change' : 'Upload'}</span>
                               <input 
@@ -766,9 +820,9 @@ export default function InEarMonitorApp() {
                     </div>
                     
                     {Object.keys(audioFiles).length > 0 && (
-                      <div className="mt-4 bg-blue-50 p-4 rounded-lg text-sm">
-                        <p className="font-medium text-blue-800 mb-1">Tips for Using Uploaded Audio:</p>
-                        <ul className="list-disc pl-5 text-blue-700">
+                      <div className="mt-6 bg-blue-50 p-4 rounded-lg text-sm border border-blue-200">
+                        <p className="font-medium text-blue-800 mb-2">Tips for Using Uploaded Audio:</p>
+                        <ul className="list-disc pl-5 text-blue-700 space-y-1">
                           <li>Adjust the sliders below to mix your tracks</li>
                           <li>Use the playback controls to listen to your mix</li>
                           <li>Try different panning positions for better separation</li>
@@ -780,90 +834,124 @@ export default function InEarMonitorApp() {
                 )}
               </div>
               
-              <div className="bg-white rounded-lg p-6 shadow">
-                <h3 className="text-xl font-semibold mb-4">Channel Mix</h3>
+              {/* Channel Mix - Enhanced with grouping and better visual hierarchy */}
+              <div className="bg-white rounded-lg p-6 shadow-md">
+                <h3 className="text-xl font-semibold mb-6 flex items-center">
+                  <Sliders className="mr-2 text-indigo-600" />
+                  Channel Mix
+                </h3>
                 
-                <div className="flex flex-col space-y-6">
-                  {Object.keys(sliderValues)
-                    .filter(key => key !== 'master')
-                    .map((channel) => {
-                      return (
-                        <div key={channel} className={`border rounded-lg p-4 transition-all ${activeChannel === channel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                          <div className="flex justify-between items-center mb-2">
-                            <h4 className="font-medium">{channelLabels[channel] || channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h4>
-                            <div className="flex items-center">
-                              {isClipping(channel) && (
-                                <span className="text-red-600 mr-2 font-bold text-sm animate-pulse">
-                                  CLIPPING!
-                                </span>
-                              )}
-                              <button 
-                                className={`px-3 py-1 rounded-md text-sm transition-colors ${activeChannel === channel ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 hover:bg-gray-300'}`}
-                                onClick={() => setActiveChannel(activeChannel === channel ? null : channel)}
+                {/* Group channels by type */}
+                {Object.entries(channelGroups).map(([groupName, channels]) => {
+                  const hasChannels = channels.some(channel => Object.keys(sliderValues).includes(channel));
+                  if (!hasChannels) return null;
+                  
+                  return (
+                    <div key={groupName} className="mb-8">
+                      <h4 className="text-lg font-medium mb-4 text-gray-700 capitalize border-b pb-2">
+                        {groupName === 'vocals' ? '🎤 Vocals' : 
+                         groupName === 'rhythm' ? '🥁 Rhythm Section' : 
+                         groupName === 'melodic' ? '🎹 Melodic Instruments' : '🎯 Utility'}
+                      </h4>
+                      
+                      <div className="flex flex-col space-y-4">
+                        {channels
+                          .filter(channel => Object.keys(sliderValues).includes(channel) && channel !== 'master')
+                          .map((channel) => {
+                            const borderColor = getChannelColor(channel) === 'blue' ? 'border-blue-400' : 
+                                               getChannelColor(channel) === 'green' ? 'border-green-400' : 
+                                               getChannelColor(channel) === 'purple' ? 'border-purple-400' : 
+                                               'border-orange-400';
+                            
+                            return (
+                              <div 
+                                key={channel} 
+                                className={`border rounded-lg p-4 transition-all hover:shadow-md ${activeChannel === channel ? 'border-blue-500 bg-blue-50' : `${borderColor} hover:border-gray-300`}`}
                               >
-                                {activeChannel === channel ? 'Done' : 'Adjust'}
-                              </button>
-                            </div>
-                          </div>
-                          
-                          {activeChannel === channel ? (
-                            <div className="space-y-4">
-                              <div>
-                                <label className="block text-sm text-gray-500 mb-1">Volume</label>
-                                <input 
-                                  type="range" 
-                                  min="0" 
-                                  max="100" 
-                                  value={sliderValues[channel]}
-                                  onChange={(e) => handleSliderChange(channel, e.target.value)}
-                                  className="w-full"
-                                />
-                                <div className="flex justify-between text-sm">
-                                  <span>0%</span>
-                                  <span className={isClipping(channel) ? 'text-red-600 font-bold' : ''}>
-                                    {sliderValues[channel]}%
-                                  </span>
-                                  <span>100%</span>
+                                <div className="flex justify-between items-center mb-2">
+                                  <h4 className="font-medium">{channelLabels[channel] || channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h4>
+                                  <div className="flex items-center">
+                                    {isClipping(channel) && (
+                                      <span className="text-red-600 mr-2 font-bold text-sm animate-pulse">
+                                        CLIPPING!
+                                      </span>
+                                    )}
+                                    <button 
+                                      className={`px-3 py-1 rounded-md text-sm transition-colors ${activeChannel === channel ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                      onClick={() => setActiveChannel(activeChannel === channel ? null : channel)}
+                                    >
+                                      {activeChannel === channel ? 'Done' : 'Adjust'}
+                                    </button>
+                                  </div>
                                 </div>
+                                
+                                {activeChannel === channel ? (
+                                  <div className="space-y-6 mt-4">
+                                    <div>
+                                      <label className="block text-sm text-gray-500 mb-2 flex justify-between">
+                                        <span>Volume</span>
+                                        <span className={isClipping(channel) ? 'text-red-600 font-bold' : ''}>
+                                          {sliderValues[channel]}%
+                                        </span>
+                                      </label>
+                                      <input 
+                                        type="range" 
+                                        min="0" 
+                                        max="100" 
+                                        value={sliderValues[channel]}
+                                        onChange={(e) => handleSliderChange(channel, e.target.value)}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                      />
+                                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                        <span>0%</span>
+                                        <span>50%</span>
+                                        <span>100%</span>
+                                      </div>
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-sm text-gray-500 mb-2 flex justify-between">
+                                        <span>Panning</span>
+                                        <span>{panning[channel] === 0 ? 'Center' : panning[channel] < 0 ? `${Math.abs(panning[channel])}% L` : `${panning[channel]}% R`}</span>
+                                      </label>
+                                      <input 
+                                        type="range" 
+                                        min="-100" 
+                                        max="100" 
+                                        value={panning[channel]}
+                                        onChange={(e) => handlePanningChange(channel, e.target.value)}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                      />
+                                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                                        <span>L</span>
+                                        <span>C</span>
+                                        <span>R</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center mt-2">
+                                    <div className="w-16 text-center text-sm mr-2 bg-gray-100 rounded-full py-1 px-2">
+                                      {panning[channel] < 0 ? `${Math.abs(panning[channel])}L` : panning[channel] > 0 ? `${panning[channel]}R` : 'C'}
+                                    </div>
+                                    <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${getVolumeColor(sliderValues[channel])} transition-all`}
+                                        style={{ width: `${sliderValues[channel]}%` }}
+                                      ></div>
+                                    </div>
+                                    <div className="w-12 text-right text-sm ml-2 font-medium">
+                                      {sliderValues[channel]}%
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              
-                              <div>
-                                <label className="block text-sm text-gray-500 mb-1">Panning</label>
-                                <input 
-                                  type="range" 
-                                  min="-100" 
-                                  max="100" 
-                                  value={panning[channel]}
-                                  onChange={(e) => handlePanningChange(channel, e.target.value)}
-                                  className="w-full"
-                                />
-                                <div className="flex justify-between text-sm">
-                                  <span>L</span>
-                                  <span>{panning[channel] === 0 ? 'Center' : panning[channel] < 0 ? `${Math.abs(panning[channel])}% L` : `${panning[channel]}% R`}</span>
-                                  <span>R</span>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center">
-                              <div className="w-16 text-center text-sm mr-2">
-                                {panning[channel] < 0 ? 'L' : panning[channel] > 0 ? 'R' : 'C'}
-                              </div>
-                              <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full ${getVolumeColor(sliderValues[channel])} transition-all`}
-                                  style={{ width: `${sliderValues[channel]}%` }}
-                                ></div>
-                              </div>
-                              <div className="w-12 text-right text-sm ml-2">
-                                {sliderValues[channel]}%
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
