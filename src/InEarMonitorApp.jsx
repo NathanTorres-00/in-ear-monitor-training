@@ -677,7 +677,7 @@ export default function InEarMonitorApp() {
                 ))}
               </div>
               
-              <div className="bg-white rounded-lg p-6 shadow">
+              <div className="bg-white rounded-lg p-6 shadow text-gray-800">
                 <h2 className="text-2xl font-bold mb-4">{topicContent[activeTopic].title}</h2>
                 {topicContent[activeTopic].content}
               </div>
@@ -693,7 +693,7 @@ export default function InEarMonitorApp() {
               {/* Master Volume - Enhanced with better visual feedback */}
               <div className="bg-white rounded-lg p-6 shadow-md mb-8 border-l-4 border-blue-600">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold flex items-center">
+                  <h3 className="text-xl font-semibold flex items-center text-gray-800">
                     <Volume2 className="mr-2 text-blue-600" />
                     Master Volume
                   </h3>
@@ -728,7 +728,7 @@ export default function InEarMonitorApp() {
               
               {/* Audio Player Controls - Enhanced with better styling */}
               {Object.keys(audioFiles).length > 0 && (
-                <div className="bg-white rounded-lg p-6 shadow-md mb-8">
+                <div className="bg-white rounded-lg p-6 shadow-md mb-8 text-gray-800">
                   <h3 className="text-xl font-semibold mb-4 flex items-center">
                     <Music className="mr-2 text-purple-600" />
                     Audio Playback
@@ -776,7 +776,7 @@ export default function InEarMonitorApp() {
               )}
               
               {/* Audio Upload Section - Now Collapsible with better styling */}
-              <div className="bg-white rounded-lg p-6 shadow-md mb-8 border-l-4 border-green-500">
+              <div className="bg-white rounded-lg p-6 shadow-md mb-8 border-l-4 border-green-500 text-gray-800">
                 <div 
                   className="flex items-center justify-between mb-4 cursor-pointer" 
                   onClick={() => setShowUploadSection(!showUploadSection)}
@@ -797,7 +797,7 @@ export default function InEarMonitorApp() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {['vocals', 'drums', 'bass', 'keys', 'acousticGuitar', 'electricGuitar', 'electricGuitar2', 'percussion', 'synth'].map(channel => (
                         <div key={channel} className={`border rounded-lg p-4 transition-all hover:shadow-md border-l-4 ${getChannelColor(channel) === 'blue' ? 'border-l-blue-500' : getChannelColor(channel) === 'green' ? 'border-l-green-500' : getChannelColor(channel) === 'purple' ? 'border-l-purple-500' : 'border-l-orange-500'}`}>
-                          <h4 className="font-medium mb-3">{channelLabels[channel] || channel}</h4>
+                          <h4 className="font-medium mb-3 text-gray-800">{channelLabels[channel] || channel}</h4>
                           <div className="flex items-center">
                             <label className={`flex items-center justify-center px-4 py-2 rounded-md cursor-pointer transition-colors ${audioFiles[channel] ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}>
                               <Upload size={16} className="mr-2" />
@@ -835,7 +835,7 @@ export default function InEarMonitorApp() {
               </div>
               
               {/* Channel Mix - Enhanced with grouping and better visual hierarchy */}
-              <div className="bg-white rounded-lg p-6 shadow-md">
+              <div className="bg-white rounded-lg p-6 shadow-md text-gray-800">
                 <h3 className="text-xl font-semibold mb-6 flex items-center">
                   <Sliders className="mr-2 text-indigo-600" />
                   Channel Mix
@@ -869,7 +869,7 @@ export default function InEarMonitorApp() {
                                 className={`border rounded-lg p-4 transition-all hover:shadow-md ${activeChannel === channel ? 'border-blue-500 bg-blue-50' : `${borderColor} hover:border-gray-300`}`}
                               >
                                 <div className="flex justify-between items-center mb-2">
-                                  <h4 className="font-medium">{channelLabels[channel] || channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h4>
+                                  <h4 className="font-medium text-gray-800">{channelLabels[channel] || channel.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h4>
                                   <div className="flex items-center">
                                     {isClipping(channel) && (
                                       <span className="text-red-600 mr-2 font-bold text-sm animate-pulse">
@@ -958,8 +958,8 @@ export default function InEarMonitorApp() {
           
           {activeTab === 'quiz' && (
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Knowledge Check</h2>
-              <div className="bg-white rounded-lg p-6 shadow">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Knowledge Check</h2>
+              <div className="bg-white rounded-lg p-6 shadow text-gray-800">
                 <p className="text-gray-500 italic mb-4">Test your understanding of in-ear monitor mixing concepts.</p>
                 
                 <div className="space-y-6">
@@ -1027,8 +1027,8 @@ export default function InEarMonitorApp() {
           
           {activeTab === 'help' && (
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Help & Resources</h2>
-              <div className="bg-white rounded-lg p-6 shadow">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Help & Resources</h2>
+              <div className="bg-white rounded-lg p-6 shadow text-gray-800">
                 <h3 className="text-xl font-semibold mb-3">Frequently Asked Questions</h3>
                 
                 <div className="space-y-4 mb-6">
@@ -1050,7 +1050,7 @@ export default function InEarMonitorApp() {
                 
                 <h3 className="text-xl font-semibold mb-3">Contact Tech Support</h3>
                 <div className="bg-blue-100 p-4 rounded-lg">
-                  <p className="mb-2">Need additional help? Contact your tech team:</p>
+                  <p className="mb-2 text-blue-800">Need additional help? Contact your tech team:</p>
                   <button className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
                     Send Message to Tech Team
                   </button>
