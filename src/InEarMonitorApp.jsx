@@ -55,6 +55,15 @@ export default function InEarMonitorApp() {
   const seekBarRef = useRef(null);
   const audioSources = useRef({});
   
+  // Add quiz state
+  const [quizAnswers, setQuizAnswers] = useState({
+    q1: '',
+    q2: '',
+    q3: ''
+  });
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState(0);
+  
   // Initialize Web Audio API context
   useEffect(() => {
     if (Object.keys(audioFiles).length > 0) {
@@ -571,6 +580,27 @@ export default function InEarMonitorApp() {
       (sliderValues.master > 75 && sliderValues[channel] > 70);
   };
   
+  // Add function to handle quiz answers
+  const handleQuizAnswer = (question, answer) => {
+    setQuizAnswers(prev => ({
+      ...prev,
+      [question]: answer
+    }));
+  };
+  
+  // Add function to check quiz answers
+  const checkQuizAnswers = () => {
+    let score = 0;
+    
+    // Correct answers
+    if (quizAnswers.q1 === 'b') score += 1;
+    if (quizAnswers.q2 === 'b') score += 1;
+    if (quizAnswers.q3 === 'b') score += 1;
+    
+    setQuizScore(score);
+    setQuizSubmitted(true);
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header - Enhanced with gradient and better styling */}
@@ -960,67 +990,221 @@ export default function InEarMonitorApp() {
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Knowledge Check</h2>
               <div className="bg-white rounded-lg p-6 shadow text-gray-800">
-                <p className="text-gray-500 italic mb-4">Test your understanding of in-ear monitor mixing concepts.</p>
-                
-                <div className="space-y-6">
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
-                    <h3 className="font-semibold mb-2">1. What is the recommended master volume range?</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input type="radio" id="q1a" name="q1" className="mr-2" />
-                        <label htmlFor="q1a">25% to 50%</label>
+                {quizSubmitted ? (
+                  <div>
+                    <div className={`text-center p-4 rounded-lg mb-6 ${quizScore === 3 ? 'bg-green-100 text-green-800' : quizScore >= 1 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                      <h3 className="text-xl font-bold mb-2">Your Score: {quizScore}/3</h3>
+                      <p>{quizScore === 3 ? 'Great job! You understand in-ear monitor mixing concepts well!' : 
+                         quizScore >= 1 ? 'Good effort! Review the learning materials to improve your understanding.' : 
+                         'You might want to review the learning materials again.'}</p>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div className={`border rounded-lg p-4 ${quizAnswers.q1 === 'b' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+                        <h3 className="font-semibold mb-2">1. What is the recommended master volume range?</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <input type="radio" id="q1a" name="q1" checked={quizAnswers.q1 === 'a'} disabled className="mr-2" />
+                            <label htmlFor="q1a" className={quizAnswers.q1 === 'a' ? 'text-red-600' : ''}>25% to 50%</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input type="radio" id="q1b" name="q1" checked={quizAnswers.q1 === 'b'} disabled className="mr-2" />
+                            <label htmlFor="q1b" className="font-bold text-green-600">50% to 75% (Correct)</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input type="radio" id="q1c" name="q1" checked={quizAnswers.q1 === 'c'} disabled className="mr-2" />
+                            <label htmlFor="q1c" className={quizAnswers.q1 === 'c' ? 'text-red-600' : ''}>75% to 100%</label>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <input type="radio" id="q1b" name="q1" className="mr-2" />
-                        <label htmlFor="q1b">50% to 75%</label>
+                      
+                      <div className={`border rounded-lg p-4 ${quizAnswers.q2 === 'b' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+                        <h3 className="font-semibold mb-2">2. What should you start with when building a mix?</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <input type="radio" id="q2a" name="q2" checked={quizAnswers.q2 === 'a'} disabled className="mr-2" />
+                            <label htmlFor="q2a" className={quizAnswers.q2 === 'a' ? 'text-red-600' : ''}>Drums</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input type="radio" id="q2b" name="q2" checked={quizAnswers.q2 === 'b'} disabled className="mr-2" />
+                            <label htmlFor="q2b" className="font-bold text-green-600">Your own voice/instrument (Correct)</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input type="radio" id="q2c" name="q2" checked={quizAnswers.q2 === 'c'} disabled className="mr-2" />
+                            <label htmlFor="q2c" className={quizAnswers.q2 === 'c' ? 'text-red-600' : ''}>Click track</label>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <input type="radio" id="q1c" name="q1" className="mr-2" />
-                        <label htmlFor="q1c">75% to 100%</label>
+                      
+                      <div className={`border rounded-lg p-4 ${quizAnswers.q3 === 'b' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+                        <h3 className="font-semibold mb-2">3. What is panning used for?</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <input type="radio" id="q3a" name="q3" checked={quizAnswers.q3 === 'a'} disabled className="mr-2" />
+                            <label htmlFor="q3a" className={quizAnswers.q3 === 'a' ? 'text-red-600' : ''}>To make everything louder</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input type="radio" id="q3b" name="q3" checked={quizAnswers.q3 === 'b'} disabled className="mr-2" />
+                            <label htmlFor="q3b" className="font-bold text-green-600">To position sounds in the stereo field and create separation (Correct)</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input type="radio" id="q3c" name="q3" checked={quizAnswers.q3 === 'c'} disabled className="mr-2" />
+                            <label htmlFor="q3c" className={quizAnswers.q3 === 'c' ? 'text-red-600' : ''}>To mute channels you don't want to hear</label>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <button 
+                          className="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors"
+                          onClick={() => {
+                            setQuizSubmitted(false);
+                            setQuizAnswers({q1: '', q2: '', q3: ''});
+                          }}
+                        >
+                          Try Again
+                        </button>
+                        <button 
+                          className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                          onClick={() => setActiveTab('learn')}
+                        >
+                          Review Learning Material
+                        </button>
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
-                    <h3 className="font-semibold mb-2">2. What should you start with when building a mix?</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input type="radio" id="q2a" name="q2" className="mr-2" />
-                        <label htmlFor="q2a">Drums</label>
+                ) : (
+                  <>
+                    <p className="text-gray-500 italic mb-4">Test your understanding of in-ear monitor mixing concepts.</p>
+                    
+                    <div className="space-y-6">
+                      <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                        <h3 className="font-semibold mb-2">1. What is the recommended master volume range?</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q1a" 
+                              name="q1" 
+                              className="mr-2" 
+                              checked={quizAnswers.q1 === 'a'}
+                              onChange={() => handleQuizAnswer('q1', 'a')}
+                            />
+                            <label htmlFor="q1a">25% to 50%</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q1b" 
+                              name="q1" 
+                              className="mr-2"
+                              checked={quizAnswers.q1 === 'b'}
+                              onChange={() => handleQuizAnswer('q1', 'b')}
+                            />
+                            <label htmlFor="q1b">50% to 75%</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q1c" 
+                              name="q1" 
+                              className="mr-2"
+                              checked={quizAnswers.q1 === 'c'}
+                              onChange={() => handleQuizAnswer('q1', 'c')}
+                            />
+                            <label htmlFor="q1c">75% to 100%</label>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <input type="radio" id="q2b" name="q2" className="mr-2" />
-                        <label htmlFor="q2b">Your own voice/instrument</label>
+                      
+                      <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                        <h3 className="font-semibold mb-2">2. What should you start with when building a mix?</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q2a" 
+                              name="q2" 
+                              className="mr-2"
+                              checked={quizAnswers.q2 === 'a'}
+                              onChange={() => handleQuizAnswer('q2', 'a')}
+                            />
+                            <label htmlFor="q2a">Drums</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q2b" 
+                              name="q2" 
+                              className="mr-2"
+                              checked={quizAnswers.q2 === 'b'}
+                              onChange={() => handleQuizAnswer('q2', 'b')}
+                            />
+                            <label htmlFor="q2b">Your own voice/instrument</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q2c" 
+                              name="q2" 
+                              className="mr-2"
+                              checked={quizAnswers.q2 === 'c'}
+                              onChange={() => handleQuizAnswer('q2', 'c')}
+                            />
+                            <label htmlFor="q2c">Click track</label>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <input type="radio" id="q2c" name="q2" className="mr-2" />
-                        <label htmlFor="q2c">Click track</label>
+                      
+                      <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                        <h3 className="font-semibold mb-2">3. What is panning used for?</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q3a" 
+                              name="q3" 
+                              className="mr-2"
+                              checked={quizAnswers.q3 === 'a'}
+                              onChange={() => handleQuizAnswer('q3', 'a')}
+                            />
+                            <label htmlFor="q3a">To make everything louder</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q3b" 
+                              name="q3" 
+                              className="mr-2"
+                              checked={quizAnswers.q3 === 'b'}
+                              onChange={() => handleQuizAnswer('q3', 'b')}
+                            />
+                            <label htmlFor="q3b">To position sounds in the stereo field and create separation</label>
+                          </div>
+                          <div className="flex items-center">
+                            <input 
+                              type="radio" 
+                              id="q3c" 
+                              name="q3" 
+                              className="mr-2"
+                              checked={quizAnswers.q3 === 'c'}
+                              onChange={() => handleQuizAnswer('q3', 'c')}
+                            />
+                            <label htmlFor="q3c">To mute channels you don't want to hear</label>
+                          </div>
+                        </div>
                       </div>
+                      
+                      <button 
+                        className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                        onClick={checkQuizAnswers}
+                        disabled={!quizAnswers.q1 || !quizAnswers.q2 || !quizAnswers.q3}
+                      >
+                        Check Answers
+                      </button>
                     </div>
-                  </div>
-                  
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
-                    <h3 className="font-semibold mb-2">3. What is panning used for?</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input type="radio" id="q3a" name="q3" className="mr-2" />
-                        <label htmlFor="q3a">To make everything louder</label>
-                      </div>
-                      <div className="flex items-center">
-                        <input type="radio" id="q3b" name="q3" className="mr-2" />
-                        <label htmlFor="q3b">To position sounds in the stereo field and create separation</label>
-                      </div>
-                      <div className="flex items-center">
-                        <input type="radio" id="q3c" name="q3" className="mr-2" />
-                        <label htmlFor="q3c">To mute channels you don't want to hear</label>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <button className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
-                    Check Answers
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
             </div>
           )}
