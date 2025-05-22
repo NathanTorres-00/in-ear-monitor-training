@@ -46,6 +46,7 @@ export default function InEarMonitorApp() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isLooping, setIsLooping] = useState(false);
   const audioElements = useRef({});
   const masterGainNode = useRef(null);
   const audioContext = useRef(null);
@@ -87,6 +88,7 @@ export default function InEarMonitorApp() {
             const audio = new Audio();
             audio.src = URL.createObjectURL(audioFiles[channel]);
             audio.preload = 'auto';
+            audio.loop = isLooping;
             audioElements.current[channel] = audio;
             
             console.log(`Creating audio for ${channel}:`, audio.src);
@@ -120,8 +122,10 @@ export default function InEarMonitorApp() {
             
             audio.addEventListener('ended', () => {
               console.log(`Audio ${channel} ended`);
-              setIsPlaying(false);
-              cancelAnimationFrame(animationRef.current);
+              if (!isLooping) {
+                setIsPlaying(false);
+                cancelAnimationFrame(animationRef.current);
+              }
             });
             
             audio.addEventListener('error', (e) => {
@@ -147,7 +151,7 @@ export default function InEarMonitorApp() {
         });
       }
     };
-  }, [audioFiles]);
+  }, [audioFiles, isLooping]);
   
   // Update gain and pan values when sliders change
   useEffect(() => {
@@ -601,6 +605,14 @@ export default function InEarMonitorApp() {
     setQuizSubmitted(true);
   };
   
+  // Add toggle loop function
+  const toggleLoop = () => {
+    setIsLooping(!isLooping);
+    Object.values(audioElements.current).forEach(audio => {
+      audio.loop = !isLooping;
+    });
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header - Enhanced with gradient and better styling */}
@@ -778,6 +790,19 @@ export default function InEarMonitorApp() {
                         onClick={resetPlayback}
                       >
                         <SkipBack size={24} />
+                      </button>
+
+                      <button 
+                        className={`p-3 rounded-full shadow-md transition-all transform hover:scale-105 ${isLooping ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                        onClick={toggleLoop}
+                        title="Toggle Loop"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                          <path d="M3 3v5h5"/>
+                          <path d="M21 12a9 9 0 1 1-9 9 9.75 9.75 0 0 1 6.74-2.74L21 16"/>
+                          <path d="M16 16h5v5"/>
+                        </svg>
                       </button>
                     </div>
                     
