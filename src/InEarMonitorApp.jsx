@@ -607,10 +607,27 @@ export default function InEarMonitorApp() {
   
   // Add toggle loop function
   const toggleLoop = () => {
+    const wasPlaying = isPlaying;
     setIsLooping(!isLooping);
-    Object.values(audioElements.current).forEach(audio => {
+    
+    // Store current time before updating loop state
+    const currentTimes = {};
+    Object.entries(audioElements.current).forEach(([channel, audio]) => {
+      currentTimes[channel] = audio.currentTime;
       audio.loop = !isLooping;
     });
+
+    // If audio was playing, ensure it continues playing
+    if (wasPlaying) {
+      Object.entries(audioElements.current).forEach(([channel, audio]) => {
+        audio.currentTime = currentTimes[channel];
+        if (!audio.playing) {
+          audio.play().catch(error => {
+            console.error(`Error playing audio for ${channel}:`, error);
+          });
+        }
+      });
+    }
   };
   
   return (
