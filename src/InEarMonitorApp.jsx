@@ -68,14 +68,14 @@ export default function InEarMonitorApp() {
   const [loopEnd, setLoopEnd] = useState(0);   // New state for loop end
   const [isDraggingLoopStart, setIsDraggingLoopStart] = useState(false); // New state for dragging loop start handle
   const [isDraggingLoopEnd, setIsDraggingLoopEnd] = useState(false);     // New state for dragging loop end handle
-  const audioElements = useRef({});
   const masterGainNode = useRef(null);
   const audioContext = useRef(null);
   const gainNodes = useRef({});
   const panNodes = useRef({});
   const animationRef = useRef(null);
   const seekBarRef = useRef(null);
-  const audioSources = useRef({});
+  const audioSources = useRef({}); // This will store AudioBufferSourceNodes
+  const originalAudioFiles = useRef({}); // New ref to store original File objects
   const canvasRef = useRef(null);
   const analyserNodeRef = useRef(null);
   
@@ -115,128 +115,39 @@ export default function InEarMonitorApp() {
 
   // Initialize Web Audio API context
   useEffect(() => {
-    if (Object.keys(audioFiles).length > 0) {
-      if (!audioContext.current) {
-        try {
-          audioContext.current = new (window.AudioContext || window.webkitAudioContext)({
-            latencyHint: 'interactive',
-            sampleRate: 44100
-          });
-          
-          // Create a single gain node for all channels
-          masterGainNode.current = audioContext.current.createGain();
-          masterGainNode.current.connect(audioContext.current.destination);
-          masterGainNode.current.gain.value = sliderValues.master / 100;
+    if (!audioContext.current) {
+      try {
+        audioContext.current = new (window.AudioContext || window.webkitAudioContext)({
+          latencyHint: 'interactive',
+          sampleRate: 44100
+        });
+        
+        // Create a single gain node for all channels
+        masterGainNode.current = audioContext.current.createGain();
+        masterGainNode.current.connect(audioContext.current.destination);
+        masterGainNode.current.gain.value = sliderValues.master / 100;
 
-          // Optimize audio context state management
-          audioContext.current.addEventListener('statechange', () => {
-            if (audioContext.current.state === 'suspended' && isPlaying) {
-              audioContext.current.resume().catch(error => {
-                console.error("Failed to resume AudioContext:", error);
-                setIsPlaying(false);
-              });
-            }
-          });
-
-          // Create and connect AnalyserNode
-          analyserNodeRef.current = audioContext.current.createAnalyser();
-          masterGainNode.current.connect(analyserNodeRef.current);
-          analyserNodeRef.current.connect(audioContext.current.destination);
-        } catch (err) {
-          console.error("Error creating audio context:", err);
-          alert("Error initializing audio. Please try refreshing the page.");
-        }
-      }
-      
-      // Optimize audio node creation
-      Object.keys(audioFiles).forEach(channel => {
-        try {
-          if (!audioElements.current[channel]) {
-            const audio = new Audio();
-            audio.src = URL.createObjectURL(audioFiles[channel]);
-            audio.preload = 'auto';
-            audio.loop = isLooping;
-            audioElements.current[channel] = audio;
-            
-            // Create and connect audio nodes efficiently
-            const source = audioContext.current.createMediaElementSource(audio);
-            const gainNode = audioContext.current[channel] = audioContext.current.createGain();
-            const panNode = audioContext.current[channel] = audioContext.current.createStereoPanner();
-            
-            audioSources.current[channel] = source;
-            gainNodes.current[channel] = gainNode;
-            panNodes.current[channel] = panNode;
-            
-            // Optimize node connections
-            source.connect(gainNode);
-            gainNode.connect(panNode);
-            panNode.connect(masterGainNode.current);
-            
-            // Set initial values
-            gainNode.gain.value = sliderValues[channel] / 100;
-            panNode.pan.value = panning[channel] / 100;
-            
-            // Optimize event listeners
-            const handleLoadedMetadata = () => {
-              setDuration(audio.duration);
-              setLoopEnd(audio.duration); // Set loopEnd to duration when metadata loads
-            };
-            
-            const handleEnded = () => {
-              if (isLooping && loopEnd > 0) {
-                // If looping is active and current time is at or beyond loopEnd, jump back to loopStart
-                Object.values(audioElements.current).forEach(audio => {
-                  audio.currentTime = loopStart;
-                });
-                if (!isPlaying) { // If not playing, ensure it starts playing for the loop
-                  startPlayback();
-                }
-              } else if (!isLooping) {
-                setIsPlaying(false);
-                cancelAnimationFrame(animationRef.current);
-              }
-            };
-            
-            const handleError = (e) => {
-              console.error(`Error with audio ${channel}:`, e);
-              alert(`Error loading audio for ${channel}. Please try uploading the file again.`);
-              cleanupAudioChannel(channel);
-            };
-            
-            audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-            audio.addEventListener('ended', handleEnded);
-            audio.addEventListener('error', handleError);
-            
-            // Store cleanup function
-            audio.cleanup = () => {
-              audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-              audio.removeEventListener('ended', handleEnded);
-              audio.removeEventListener('error', handleError);
-            };
+        // Optimize audio context state management
+        audioContext.current.addEventListener('statechange', () => {
+          if (audioContext.current.state === 'suspended' && isPlaying) {
+            audioContext.current.resume().catch(error => {
+              console.error("Failed to resume AudioContext:", error);
+              setIsPlaying(false);
+            });
           }
-        } catch (err) {
-          console.error(`Error setting up audio for ${channel}:`, err);
-          alert(`Error setting up audio for ${channel}. Please try again.`);
-        }
-      });
+        });
+
+        // Create and connect AnalyserNode
+        analyserNodeRef.current = audioContext.current.createAnalyser();
+        masterGainNode.current.connect(analyserNodeRef.current);
+        analyserNodeRef.current.connect(audioContext.current.destination);
+      } catch (err) {
+        console.error("Error creating audio context:", err);
+        alert("Error initializing audio. Please try refreshing the page.");
+      }
     }
-    
+
     return () => {
-      // Optimize cleanup
-      Object.entries(audioElements.current).forEach(([channel, audio]) => {
-        if (audio.cleanup) {
-          audio.cleanup();
-        }
-        audio.pause();
-        audio.src = '';
-        audio.load();
-      });
-      
-      audioElements.current = {};
-      audioSources.current = {};
-      gainNodes.current = {};
-      panNodes.current = {};
-      
       // Clean up analyser node
       if (analyserNodeRef.current) {
         analyserNodeRef.current.disconnect();
@@ -247,9 +158,38 @@ export default function InEarMonitorApp() {
         audioContext.current = null;
       }
     };
-  }, [audioFiles, isLooping]);
+  }, [isPlaying, sliderValues.master]); // Added sliderValues.master dependency
   
-  // Update gain and pan values when sliders change
+  // Create audio nodes for each channel (moved from initial useEffect)
+  useEffect(() => {
+    if (!audioContext.current) return;
+
+    Object.keys(audioFiles).forEach(channel => {
+      try {
+        // Create and connect audio nodes efficiently if they don't exist
+        if (!gainNodes.current[channel]) {
+          const gainNode = audioContext.current.createGain();
+          const panNode = audioContext.current.createStereoPanner();
+          
+          gainNodes.current[channel] = gainNode;
+          panNodes.current[channel] = panNode;
+          
+          // Optimize node connections
+          gainNode.connect(panNode);
+          panNode.connect(masterGainNode.current);
+          
+          // Set initial values
+          gainNode.gain.value = sliderValues[channel] / 100;
+          panNode.pan.value = panning[channel] / 100;
+        }
+      } catch (err) {
+        console.error(`Error setting up audio nodes for ${channel}:`, err);
+        alert(`Error setting up audio nodes for ${channel}. Please try again.`);
+      }
+    });
+  }, [audioFiles, sliderValues, panning]); // Dependencies for node creation
+  
+  // Update gain and pan values when sliders change (existing useEffect)
   useEffect(() => {
     if (masterGainNode.current) {
       masterGainNode.current.gain.value = sliderValues.master / 100;
@@ -405,181 +345,146 @@ export default function InEarMonitorApp() {
     view.setUint32(40, buffer.length * blockAlign, true);
     
     // Write audio data
-    const offset = 44;
-    const channelData = [];
-    for (let i = 0; i < numChannels; i++) {
-      channelData.push(buffer.getChannelData(i));
-    }
-    
-    for (let i = 0; i < buffer.length; i++) {
-      for (let channel = 0; channel < numChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, channelData[channel][i]));
-        const value = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-        view.setInt16(offset + (i * blockAlign) + (channel * bytesPerSample), value, true);
+    const floatTo16BitPCM = (output, offset, input) => {
+      for (let i = 0; i < input.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, input[i]));
+        output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
       }
+    };
+
+    let offset = 44;
+    for (let i = 0; i < numChannels; i++) {
+      floatTo16BitPCM(view, offset, buffer.getChannelData(i));
+      offset += buffer.length * bytesPerSample;
     }
     
     return new Blob([wav], { type: 'audio/wav' });
   };
 
+  // Add function to write string to DataView
   const writeString = (view, offset, string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
-
-  // Add error recovery handler
+  
+  // Add error handling for audio loading and processing
   const handleErrorRecovery = async (channel, error, operation) => {
-    console.error(`Error in ${operation} for ${channel}:`, error);
-    
-    // Initialize retry count if not exists
-    if (!retryCounts.current[channel]) {
+    console.error(`Error during ${operation} for ${channel}:`, error);
+    setErrorStates(prev => ({ ...prev, [channel]: { type: operation, message: error.message } }));
+
+    if (retryCounts.current[channel] === undefined) {
       retryCounts.current[channel] = 0;
     }
 
-    // Check if we should attempt recovery
+    if (recoveryTimeouts.current[channel]) {
+      clearTimeout(recoveryTimeouts.current[channel]);
+    }
+
     if (retryCounts.current[channel] < MAX_RETRY_ATTEMPTS) {
       retryCounts.current[channel]++;
-      
-      // Set error state
-      setErrorStates(prev => ({
-        ...prev,
-        [channel]: {
-          type: operation,
-          message: `Retrying ${operation} (Attempt ${retryCounts.current[channel]}/${MAX_RETRY_ATTEMPTS})`,
-          timestamp: Date.now()
-        }
-      }));
+      console.log(`Retrying ${operation} for ${channel} (attempt ${retryCounts.current[channel]})`);
 
-      // Attempt recovery after delay
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      
-      try {
-        switch (operation) {
-          case 'load':
+      recoveryTimeouts.current[channel] = setTimeout(async () => {
+        try {
+          if (operation === 'load') {
             await recoverAudioLoad(channel);
-            break;
-          case 'play':
+          } else if (operation === 'play') {
             await recoverAudioPlay(channel);
-            break;
-          case 'process':
+          } else if (operation === 'process') {
             await recoverAudioProcessing(channel);
-            break;
-          default:
-            throw new Error(`Unknown operation: ${operation}`);
+          }
+          setErrorStates(prev => ({ ...prev, [channel]: null }));
+          retryCounts.current[channel] = 0; // Reset on successful recovery
+        } catch (recoverError) {
+          console.error(`Failed to recover ${operation} for ${channel} after retry:`, recoverError);
+          setAudioErrors(prev => ({ ...prev, [channel]: `Failed to ${operation} audio for ${channel} after multiple retries.` }));
         }
-        
-        // Clear error state on success
-        setErrorStates(prev => {
-          const newState = { ...prev };
-          delete newState[channel];
-          return newState;
-        });
-        
-        // Reset retry count
-        retryCounts.current[channel] = 0;
-        
-      } catch (recoveryError) {
-        console.error(`Recovery failed for ${channel}:`, recoveryError);
-        
-        // If all retries failed, set permanent error
-        if (retryCounts.current[channel] >= MAX_RETRY_ATTEMPTS) {
-          setErrorStates(prev => ({
-            ...prev,
-            [channel]: {
-              type: operation,
-              message: `Failed to recover after ${MAX_RETRY_ATTEMPTS} attempts. Please try uploading again.`,
-              permanent: true,
-              timestamp: Date.now()
-            }
-          }));
-          
-          // Cleanup failed channel
-          cleanupAudioChannel(channel);
-        }
-      }
+      }, RETRY_DELAY);
+    } else {
+      setAudioErrors(prev => ({ ...prev, [channel]: `Failed to ${operation} audio for ${channel} after multiple retries.` }));
     }
   };
 
   // Add recovery functions
   const recoverAudioLoad = async (channel) => {
-    const audio = audioElements.current[channel];
-    if (!audio) return;
+    console.log(`Attempting to recover audio load for ${channel}`);
+    const file = originalAudioFiles.current[channel]; // Use originalAudioFiles
+    if (!file) throw new Error("Original file not found for recovery.");
 
-    // Reset audio element
-    audio.pause();
-    audio.src = '';
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Recreate audio source
-    const source = audioContext.current.createMediaElementSource(audio);
-    const gainNode = audioContext.current.createGain();
-    const panNode = audioContext.current.createStereoPanner();
-    
-    // Reconnect nodes
-    source.connect(gainNode);
-    gainNode.connect(panNode);
-    panNode.connect(masterGainNode.current);
-    
-    // Restore settings
-    gainNode.gain.value = sliderValues[channel] / 100;
-    panNode.pan.value = panning[channel] / 100;
-    
-    // Update refs
-    audioSources.current[channel] = source;
-    gainNodes.current[channel] = gainNode;
-    panNodes.current[channel] = panNode;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
+      bufferPool.current.set(file.name, audioBuffer); // Using file.name as key for now
+      lastAccessTime.current.set(file.name, Date.now());
+      manageBufferPool();
+      setAudioFiles(prev => ({ ...prev, [channel]: audioBuffer })); // Update audioFiles to hold AudioBuffer
+      setDuration(audioBuffer.duration); // Update duration on recovery
+      setLoopEnd(audioBuffer.duration);  // Set loopEnd to duration on recovery
+    } catch (error) {
+      throw new Error(`Failed to recover loading: ${error.message}`);
+    }
   };
 
   const recoverAudioPlay = async (channel) => {
-    const audio = audioElements.current[channel];
-    if (!audio) return;
+    console.log(`Attempting to recover audio playback for ${channel}`);
+    const audioBuffer = audioFiles[channel];
+    if (!audioBuffer) throw new Error("AudioBuffer not found for playback recovery.");
 
     try {
-      // Resume audio context if suspended
       if (audioContext.current.state === 'suspended') {
         await audioContext.current.resume();
       }
-      
-      // Reset audio element
-      audio.currentTime = 0;
-      await audio.play();
-      
-      // Restore volume and pan
-      if (gainNodes.current[channel]) {
-        gainNodes.current[channel].gain.value = sliderValues[channel] / 100;
+      // Stop any existing source for this channel
+      if (audioSources.current[channel]) {
+        audioSources.current[channel].stop();
+        audioSources.current[channel].disconnect();
       }
-      if (panNodes.current[channel]) {
-        panNodes.current[channel].pan.value = panning[channel] / 100;
-      }
+      // Create and start a new AudioBufferSourceNode
+      const source = audioContext.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(gainNodes.current[channel]);
+      source.start(0, currentTime); // Start from the current playback position
+      audioSources.current[channel] = source;
+      // Reassign onended handler for the new source
+      source.onended = () => {
+        if (isLooping && loopEnd > 0) {
+          const newSource = audioContext.current.createBufferSource();
+          newSource.buffer = audioBuffer;
+          newSource.connect(gainNodes.current[channel]);
+          newSource.start(0, loopStart); // Restart from loopStart
+          audioSources.current[channel] = newSource;
+          newSource.onended = source.onended; 
+        } else if (!isLooping) {
+          const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && (s.context.currentTime - s.playbackStartOffset) >= s.buffer.duration);
+          if (allEnded) {
+            setIsPlaying(false);
+            cancelAnimationFrame(animationRef.current);
+            animationRef.current = null;
+          }
+        }
+      };
+
+      setIsPlaying(true); // Ensure playback state is true
     } catch (error) {
       throw new Error(`Failed to recover playback: ${error.message}`);
     }
   };
 
   const recoverAudioProcessing = async (channel) => {
-    const file = audioFiles[channel];
-    if (!file) return;
+    console.log(`Attempting to recover audio processing for ${channel}`);
+    const file = originalAudioFiles.current[channel]; // Use originalAudioFiles
+    if (!file) throw new Error("Original file not found for processing recovery.");
 
     try {
-      // Recompress audio
-      const processedFile = await compressAudio(file);
-      
-      // Update audio file
-      setAudioFiles(prev => ({
-        ...prev,
-        [channel]: processedFile
-      }));
-      
-      // Reload audio element
-      const audio = audioElements.current[channel];
-      if (audio) {
-        audio.src = URL.createObjectURL(processedFile);
-        await new Promise((resolve, reject) => {
-          audio.onloadedmetadata = resolve;
-          audio.onerror = reject;
-        });
-      }
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
+      bufferPool.current.set(file.name, audioBuffer);
+      lastAccessTime.current.set(file.name, Date.now());
+      manageBufferPool();
+      setAudioFiles(prev => ({ ...prev, [channel]: audioBuffer })); // Update to processed AudioBuffer
+      setDuration(audioBuffer.duration); // Update duration on recovery
+      setLoopEnd(audioBuffer.duration);  // Set loopEnd to duration on recovery
     } catch (error) {
       throw new Error(`Failed to recover processing: ${error.message}`);
     }
@@ -595,29 +500,41 @@ export default function InEarMonitorApp() {
       
       try {
         const cacheKey = `${file.name}-${file.size}`;
-        let processedFile = audioBufferCache.get(cacheKey);
+        let audioBuffer = bufferPool.current.get(cacheKey);
         
-        if (!processedFile) {
+        // Store the original File object for potential recovery
+        originalAudioFiles.current[channel] = file;
+
+        if (!audioBuffer) {
           setIsCompressing(true);
           setCompressionProgress(prev => ({ ...prev, [channel]: 0 }));
           
           try {
-            processedFile = await compressAudio(file);
+            // Read file as ArrayBuffer
+            const arrayBuffer = await file.arrayBuffer();
+            // Decode audio data into AudioBuffer
+            audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
           } catch (error) {
             await handleErrorRecovery(channel, error, 'process');
             return;
           }
           
-          bufferPool.current.set(cacheKey, processedFile);
+          bufferPool.current.set(cacheKey, audioBuffer);
           lastAccessTime.current.set(cacheKey, Date.now());
           manageBufferPool();
         }
         
         setAudioFiles(prev => ({
           ...prev,
-          [channel]: processedFile
+          [channel]: audioBuffer // Store AudioBuffer directly
         }));
         
+        // Set duration when audioBuffer is loaded
+        if (audioBuffer && audioBuffer.duration) {
+          setDuration(audioBuffer.duration);
+          setLoopEnd(audioBuffer.duration);
+        }
+
         setLoadingProgress(prev => ({ ...prev, [channel]: 100 }));
       } catch (error) {
         await handleErrorRecovery(channel, error, 'load');
@@ -636,24 +553,19 @@ export default function InEarMonitorApp() {
 
     return () => {
       clearInterval(cleanupInterval);
-      bufferPool.current.clear();
-      lastAccessTime.current.clear();
+      // No need to clear bufferPool or lastAccessTime here if we want to retain cached buffers across component unmounts
+      // or handle it more explicitly via a clear all button.
     };
   }, []);
 
   // Add helper function for audio channel cleanup
   const cleanupAudioChannel = (channel) => {
-    if (audioElements.current[channel]) {
-      const audio = audioElements.current[channel];
-      if (audio.cleanup) {
-        audio.cleanup();
-      }
-      audio.pause();
-      audio.src = '';
-      audio.load();
+    // Stop and disconnect any active AudioBufferSourceNode
+    if (audioSources.current[channel]) {
+      audioSources.current[channel].stop();
+      audioSources.current[channel].disconnect();
+      delete audioSources.current[channel];
     }
-    delete audioElements.current[channel];
-    delete audioSources.current[channel];
     delete gainNodes.current[channel];
     delete panNodes.current[channel];
   };
@@ -731,12 +643,17 @@ export default function InEarMonitorApp() {
   );
   
   const playPause = async () => {
-    if (Object.keys(audioElements.current).length === 0) return;
+    if (Object.keys(audioFiles).length === 0 || !audioContext.current) return;
     
     if (isPlaying) {
-      Object.values(audioElements.current).forEach(audio => {
-        audio.pause();
+      // Stop all active AudioBufferSourceNodes
+      Object.values(audioSources.current).forEach(source => {
+        if (source) {
+          source.stop();
+          source.disconnect();
+        }
       });
+      audioSources.current = {}; // Clear current sources
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
       setIsPlaying(false);
@@ -746,30 +663,50 @@ export default function InEarMonitorApp() {
           await audioContext.current.resume();
         }
         
-        const playPromises = Object.entries(audioElements.current).map(async ([channel, audio]) => {
-          try {
-            // If looping is active, start from loopStart
+        const promises = Object.entries(audioFiles).map(async ([channel, audioBuffer]) => {
+          if (!audioBuffer) return; // Skip if no buffer
+
+          const source = audioContext.current.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(gainNodes.current[channel]); // Connect to existing gain node
+          
+          // Set start offset based on current time or loop start
+          const startOffset = isLooping && loopEnd > 0 ? loopStart : currentTime;
+
+          source.start(0, startOffset); // Start playback from current time or loop start
+          audioSources.current[channel] = source; // Store the source node
+
+          source.onended = () => {
+            // Handle loop logic or pause when ended
             if (isLooping && loopEnd > 0) {
-              audio.currentTime = loopStart;
+              // If looping, restart the source from loopStart
+              // This requires creating a new AudioBufferSourceNode as they cannot be reused
+              const newSource = audioContext.current.createBufferSource();
+              newSource.buffer = audioBuffer;
+              newSource.connect(gainNodes.current[channel]);
+              newSource.start(0, loopStart); // Restart from loopStart
+              audioSources.current[channel] = newSource; // Update the reference
+              newSource.onended = source.onended; // Reassign the onended handler
+            } else if (!isLooping) {
+              // If not looping, and all sources have ended, stop playback
+              const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && s.context.currentTime >= (s.startOffset + s.buffer.duration)); // Simplified check
+              if (allEnded) {
+                setIsPlaying(false);
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+              }
             }
-            await audio.play();
-          } catch (error) {
-            await handleErrorRecovery(channel, error, 'play');
-          }
+          };
         });
         
-        await Promise.all(playPromises);
+        await Promise.all(promises);
         setIsPlaying(true);
         
-        // Start seek bar animation
+        // Start seek bar animation (this will now use currentTime for display)
         const updateSeekBar = () => {
           if (!isPlaying) return; // Stop animation if not playing
-          
-          const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
-          if (firstAudio) {
-            setCurrentTime(firstAudio.currentTime);
-            animationRef.current = requestAnimationFrame(updateSeekBar);
-          }
+          // currentTime will be updated based on global audio context time and start time of playback
+          animationRef.current = requestAnimationFrame(updateSeekBar);
         };
         
         animationRef.current = requestAnimationFrame(updateSeekBar);
@@ -781,25 +718,40 @@ export default function InEarMonitorApp() {
   };
 
   const startPlayback = () => {
-    // Get the time from the first track to sync all tracks
-    const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
-    let startTime = firstAudio.currentTime;
+    if (Object.keys(audioFiles).length === 0 || !audioContext.current) return;
 
-    // If looping is active, start from loopStart
-    if (isLooping && loopEnd > 0) {
-      startTime = loopStart;
-    }
-
+    const firstAudioBuffer = audioFiles[Object.keys(audioFiles)[0]];
+    let startTime = isLooping && loopEnd > 0 ? loopStart : currentTime; // Start from loopStart if looping
+    
     console.log("Starting playback at time:", startTime);
     
-    // Play all tracks synchronized
-    const promises = Object.values(audioElements.current).map(audio => {
-      audio.currentTime = startTime;
-      audio.loop = isLooping; // Ensure loop state is set before playing
-      return audio.play().catch(error => {
-        console.error("Error playing audio:", error);
-        throw error;
-      });
+    const promises = Object.entries(audioFiles).map(async ([channel, audioBuffer]) => {
+      if (!audioBuffer) return; // Skip if no buffer
+
+      const source = audioContext.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(gainNodes.current[channel]);
+      
+      source.start(0, startTime); // Start playback from calculated startTime
+      audioSources.current[channel] = source;
+
+      source.onended = () => {
+        if (isLooping && loopEnd > 0) {
+          const newSource = audioContext.current.createBufferSource();
+          newSource.buffer = audioBuffer;
+          newSource.connect(gainNodes.current[channel]);
+          newSource.start(0, loopStart); // Restart from loopStart
+          audioSources.current[channel] = newSource;
+          newSource.onended = source.onended;
+        } else if (!isLooping) {
+          const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && s.context.currentTime >= (s.startOffset + s.buffer.duration));
+          if (allEnded) {
+            setIsPlaying(false);
+            cancelAnimationFrame(animationRef.current);
+            animationRef.current = null;
+          }
+        }
+      };
     });
     
     Promise.all(promises)
@@ -810,12 +762,8 @@ export default function InEarMonitorApp() {
         // Animation for seek bar
         const updateSeekBar = () => {
           if (!isPlaying) return; // Stop animation if not playing
-          
-          const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
-          if (firstAudio) {
-            setCurrentTime(firstAudio.currentTime);
-            animationRef.current = requestAnimationFrame(updateSeekBar);
-          }
+          // currentTime will be updated based on global audio context time and start time of playback
+          animationRef.current = requestAnimationFrame(updateSeekBar);
         };
         
         animationRef.current = requestAnimationFrame(updateSeekBar);
@@ -834,31 +782,73 @@ export default function InEarMonitorApp() {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
       }
+      // Also stop and disconnect all sources on unmount
+      Object.values(audioSources.current).forEach(source => {
+        if (source) {
+          source.stop();
+          source.disconnect();
+        }
+      });
+      audioSources.current = {};
     };
   }, []);
 
   // Dedicated useEffect for seek bar animation
   useEffect(() => {
     let animationFrameId;
+    let lastPlaybackTime = audioContext.current ? audioContext.current.currentTime : 0;
 
     const updateSeekBar = () => {
-      const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
-      if (firstAudio) {
-        let newTime = firstAudio.currentTime;
+      if (!audioContext.current || !isPlaying) {
+        setCurrentTime(0); // Reset currentTime when not playing or context not ready
+        return;
+      }
 
-        // Loop logic: if looping is active and current time exceeds loopEnd, reset to loopStart
-        if (isLooping && loopEnd > 0 && newTime >= loopEnd) {
-          newTime = loopStart;
-          Object.values(audioElements.current).forEach(audio => {
-            audio.currentTime = loopStart;
+      const currentContextTime = audioContext.current.currentTime;
+      let elapsedPlaybackTime = currentContextTime - lastPlaybackTime;
+
+      let newTime = currentTime + elapsedPlaybackTime;
+
+      if (isLooping && loopEnd > 0) {
+        // If current time exceeds loopEnd, reset to loopStart
+        if (newTime >= loopEnd) {
+          newTime = loopStart + (newTime - loopEnd); // Adjust time within loop
+          // For AudioBufferSourceNode, stopping and starting is needed to loop seamlessly
+          Object.values(audioSources.current).forEach(source => {
+            if (source) {
+              source.stop();
+              source.disconnect();
+              // Recreate and start new source for seamless loop
+              const newSource = audioContext.current.createBufferSource();
+              newSource.buffer = source.buffer;
+              newSource.connect(gainNodes.current[source.channel]); // Assuming channel info is available or can be passed
+              newSource.start(0, loopStart); 
+              audioSources.current[source.channel] = newSource;
+              newSource.onended = source.onended;
+            }
           });
         }
-        setCurrentTime(newTime);
+      } else if (newTime >= duration && duration > 0) { // Check if reached end of full track
+        newTime = duration; // Cap at duration
+        setIsPlaying(false);
+        cancelAnimationFrame(animationFrameId);
+        // Stop all sources at the end of the track
+        Object.values(audioSources.current).forEach(source => {
+          if (source) {
+            source.stop();
+            source.disconnect();
+          }
+        });
+        audioSources.current = {};
       }
+
+      setCurrentTime(newTime);
+      lastPlaybackTime = currentContextTime; // Update lastPlaybackTime for next frame
       animationFrameId = requestAnimationFrame(updateSeekBar);
     };
 
-    if (isPlaying) {
+    if (isPlaying && audioContext.current) {
+      lastPlaybackTime = audioContext.current.currentTime;
       animationFrameId = requestAnimationFrame(updateSeekBar);
     } else {
       cancelAnimationFrame(animationFrameId);
@@ -867,7 +857,7 @@ export default function InEarMonitorApp() {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, audioFiles, isLooping, loopStart, loopEnd]);
+  }, [isPlaying, audioFiles, isLooping, loopStart, loopEnd, duration, audioContext.current]);
   
   const handleSeekChange = (e) => {
     const newTime = parseFloat(e.target.value);
@@ -875,33 +865,35 @@ export default function InEarMonitorApp() {
     
     const wasPlayingBeforeSeek = isPlaying; // Store current playing state
 
-    // Pause all tracks before seeking
-    if (wasPlayingBeforeSeek) {
-      Object.values(audioElements.current).forEach(audio => {
-        audio.pause();
-      });
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-      setIsPlaying(false);
-    }
-
-    Object.values(audioElements.current).forEach(audio => {
-      audio.currentTime = newTime;
+    // Stop all current sources for seeking
+    Object.values(audioSources.current).forEach(source => {
+      if (source) {
+        source.stop();
+        source.disconnect();
+      }
     });
+    audioSources.current = {}; // Clear sources
+    cancelAnimationFrame(animationRef.current);
+    animationRef.current = null;
+    setIsPlaying(false);
+
     setCurrentTime(newTime);
 
     // Resume playback if it was playing before seeking
     if (wasPlayingBeforeSeek) {
-      playPause(); // This will call startPlayback internally if needed
+      playPause(); // This will recreate and start new sources
     }
   };
   
   const resetPlayback = () => {
     console.log("Resetting playback");
-    Object.values(audioElements.current).forEach(audio => {
-      audio.pause();
-      audio.currentTime = 0;
+    Object.values(audioSources.current).forEach(source => {
+      if (source) {
+        source.stop();
+        source.disconnect();
+      }
     });
+    audioSources.current = {};
     setCurrentTime(0);
     setIsPlaying(false);
     cancelAnimationFrame(animationRef.current);
