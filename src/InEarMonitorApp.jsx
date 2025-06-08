@@ -748,6 +748,10 @@ export default function InEarMonitorApp() {
         
         const playPromises = Object.entries(audioElements.current).map(async ([channel, audio]) => {
           try {
+            // If looping is active, start from loopStart
+            if (isLooping && loopEnd > 0) {
+              audio.currentTime = loopStart;
+            }
             await audio.play();
           } catch (error) {
             await handleErrorRecovery(channel, error, 'play');
@@ -779,7 +783,13 @@ export default function InEarMonitorApp() {
   const startPlayback = () => {
     // Get the time from the first track to sync all tracks
     const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
-    const startTime = firstAudio.currentTime;
+    let startTime = firstAudio.currentTime;
+
+    // If looping is active, start from loopStart
+    if (isLooping && loopEnd > 0) {
+      startTime = loopStart;
+    }
+
     console.log("Starting playback at time:", startTime);
     
     // Play all tracks synchronized
