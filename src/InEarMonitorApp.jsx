@@ -419,8 +419,8 @@ export default function InEarMonitorApp() {
       lastAccessTime.current.set(file.name, Date.now());
       manageBufferPool();
       setAudioFiles(prev => ({ ...prev, [channel]: audioBuffer })); // Update audioFiles to hold AudioBuffer
-      setDuration(audioBuffer.duration); // Update duration on recovery
-      setLoopEnd(audioBuffer.duration);  // Set loopEnd to duration on recovery
+      setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration)); // Update duration on recovery, only if longer
+      setLoopEnd(prevLoopEnd => Math.max(prevLoopEnd, audioBuffer.duration));    // Set loopEnd to duration on recovery, only if longer
     } catch (error) {
       throw new Error(`Failed to recover loading: ${error.message}`);
     }
@@ -483,8 +483,8 @@ export default function InEarMonitorApp() {
       lastAccessTime.current.set(file.name, Date.now());
       manageBufferPool();
       setAudioFiles(prev => ({ ...prev, [channel]: audioBuffer })); // Update to processed AudioBuffer
-      setDuration(audioBuffer.duration); // Update duration on recovery
-      setLoopEnd(audioBuffer.duration);  // Set loopEnd to duration on recovery
+      setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration)); // Update duration on recovery, only if longer
+      setLoopEnd(prevLoopEnd => Math.max(prevLoopEnd, audioBuffer.duration));    // Set loopEnd to duration on recovery, only if longer
     } catch (error) {
       throw new Error(`Failed to recover processing: ${error.message}`);
     }
@@ -529,10 +529,10 @@ export default function InEarMonitorApp() {
           [channel]: audioBuffer // Store AudioBuffer directly
         }));
         
-        // Set duration when audioBuffer is loaded
+        // Set duration when audioBuffer is loaded, only if it's the longest track
         if (audioBuffer && audioBuffer.duration) {
-          setDuration(audioBuffer.duration);
-          setLoopEnd(audioBuffer.duration);
+          setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration));
+          setLoopEnd(prevLoopEnd => Math.max(prevLoopEnd, audioBuffer.duration));
         }
 
         setLoadingProgress(prev => ({ ...prev, [channel]: 100 }));
