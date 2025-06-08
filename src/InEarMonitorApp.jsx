@@ -1393,11 +1393,13 @@ export default function InEarMonitorApp() {
     newTime = Math.max(0, Math.min(duration, newTime));
 
     if (isDraggingLoopStart) {
-      // Ensure loopStart doesn't exceed loopEnd
-      setLoopStart(Math.min(newTime, loopEnd));
+      let newLoopStart = Math.min(newTime, loopEnd);
+      newLoopStart = Math.max(0, newLoopStart); // Ensure it's not less than 0
+      setLoopStart(newLoopStart);
     } else if (isDraggingLoopEnd) {
-      // Ensure loopEnd doesn't go below loopStart
-      setLoopEnd(Math.max(newTime, loopStart));
+      let newLoopEnd = Math.max(newTime, loopStart);
+      newLoopEnd = Math.min(duration, newLoopEnd); // Ensure it's not greater than duration
+      setLoopEnd(newLoopEnd);
     }
   };
 
