@@ -746,7 +746,7 @@ export default function InEarMonitorApp() {
         
         // Start seek bar animation
         const updateSeekBar = () => {
-          if (!isPlaying) return;
+          if (!isPlaying) return; // Stop animation if not playing
           
           const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
           if (firstAudio) {
@@ -813,6 +813,29 @@ export default function InEarMonitorApp() {
       }
     };
   }, []);
+
+  // Dedicated useEffect for seek bar animation
+  useEffect(() => {
+    let animationFrameId;
+
+    const updateSeekBar = () => {
+      const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
+      if (firstAudio) {
+        setCurrentTime(firstAudio.currentTime);
+      }
+      animationFrameId = requestAnimationFrame(updateSeekBar);
+    };
+
+    if (isPlaying) {
+      animationFrameId = requestAnimationFrame(updateSeekBar);
+    } else {
+      cancelAnimationFrame(animationFrameId);
+    }
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [isPlaying, audioFiles]);
   
   const handleSeekChange = (e) => {
     const newTime = parseFloat(e.target.value);
