@@ -129,6 +129,7 @@ export default function InEarMonitorApp() {
 
         // Optimize audio context state management
         audioContext.current.addEventListener('statechange', () => {
+          if (!audioContext.current) return; // Add null check for audioContext.current
           if (audioContext.current.state === 'suspended' && isPlaying) {
             audioContext.current.resume().catch(error => {
               console.error("Failed to resume AudioContext:", error);
@@ -414,6 +415,7 @@ export default function InEarMonitorApp() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
+      if (!audioContext.current) throw new Error("AudioContext not available for decoding during recovery."); // Add null check
       const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
       bufferPool.current.set(file.name, audioBuffer); // Using file.name as key for now
       lastAccessTime.current.set(file.name, Date.now());
@@ -432,6 +434,7 @@ export default function InEarMonitorApp() {
     if (!audioBuffer) throw new Error("AudioBuffer not found for playback recovery.");
 
     try {
+      if (!audioContext.current) throw new Error("AudioContext not available for playback during recovery."); // Add null check
       if (audioContext.current.state === 'suspended') {
         await audioContext.current.resume();
       }
@@ -443,6 +446,7 @@ export default function InEarMonitorApp() {
       // Create and start a new AudioBufferSourceNode
       const source = audioContext.current.createBufferSource();
       source.buffer = audioBuffer;
+      if (!gainNodes.current[channel]) throw new Error(`GainNode not found for channel ${channel} during recovery.`); // Add null check
       source.connect(gainNodes.current[channel]);
       source.start(0, currentTime); // Start from the current playback position
       audioSources.current[channel] = source;
@@ -451,6 +455,7 @@ export default function InEarMonitorApp() {
         if (isLooping && loopEnd > 0) {
           const newSource = audioContext.current.createBufferSource();
           newSource.buffer = audioBuffer;
+          if (!gainNodes.current[channel]) return; // Add null check
           newSource.connect(gainNodes.current[channel]);
           newSource.start(0, loopStart); // Restart from loopStart
           audioSources.current[channel] = newSource;
@@ -478,6 +483,7 @@ export default function InEarMonitorApp() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
+      if (!audioContext.current) throw new Error("AudioContext not available for decoding during recovery."); // Add null check
       const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
       bufferPool.current.set(file.name, audioBuffer);
       lastAccessTime.current.set(file.name, Date.now());
@@ -689,7 +695,7 @@ export default function InEarMonitorApp() {
               newSource.onended = source.onended; // Reassign the onended handler
             } else if (!isLooping) {
               // If not looping, and all sources have ended, stop playback
-              const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && s.context.currentTime >= (s.startOffset + s.buffer.duration)); // Simplified check
+              const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && (s.context.currentTime - s.playbackStartOffset) >= s.buffer.duration);
               if (allEnded) {
                 setIsPlaying(false);
                 cancelAnimationFrame(animationRef.current);
@@ -744,7 +750,7 @@ export default function InEarMonitorApp() {
           audioSources.current[channel] = newSource;
           newSource.onended = source.onended;
         } else if (!isLooping) {
-          const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && s.context.currentTime >= (s.startOffset + s.buffer.duration));
+          const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && (s.context.currentTime - s.playbackStartOffset) >= s.buffer.duration);
           if (allEnded) {
             setIsPlaying(false);
             cancelAnimationFrame(animationRef.current);
@@ -851,10 +857,6 @@ export default function InEarMonitorApp() {
       lastPlaybackTime = audioContext.current.currentTime;
       animationFrameId = requestAnimationFrame(updateSeekBar);
     } else {
-      cancelAnimationFrame(animationFrameId);
-    }
-
-    return () => {
       cancelAnimationFrame(animationFrameId);
     };
   }, [isPlaying, audioFiles, isLooping, loopStart, loopEnd, duration, audioContext.current]);
@@ -1244,7 +1246,7 @@ export default function InEarMonitorApp() {
     // Store current time and state before updating loop state
     const currentTimes = {};
     const wasPaused = {};
-    Object.entries(audioElements.current).forEach(([channel, audio]) => {
+    Object.entries(audioFiles).forEach(([channel, audio]) => {
       currentTimes[channel] = audio.currentTime;
       wasPaused[channel] = audio.paused;
       audio.loop = !isLooping;
@@ -1252,7 +1254,7 @@ export default function InEarMonitorApp() {
 
     // If audio was playing, ensure it continues playing
     if (wasPlaying) {
-      const playPromises = Object.entries(audioElements.current).map(([channel, audio]) => {
+      const playPromises = Object.entries(audioFiles).map(([channel, audio]) => {
         audio.currentTime = currentTimes[channel];
         if (wasPaused[channel]) {
           return Promise.resolve(); // Skip if it was paused
@@ -1277,8 +1279,8 @@ export default function InEarMonitorApp() {
 
   // Update the audio initialization to handle loop state changes
   useEffect(() => {
-    if (Object.keys(audioElements.current).length > 0) {
-      Object.entries(audioElements.current).forEach(([channel, audio]) => {
+    if (Object.keys(audioFiles).length > 0) {
+      Object.entries(audioFiles).forEach(([channel, audio]) => {
         audio.loop = isLooping;
         
         // Add event listener for loop state changes
@@ -1295,7 +1297,7 @@ export default function InEarMonitorApp() {
           } else {
             console.log(`Audio ${channel} ended`);
             // Check if all tracks have ended
-            const allEnded = Object.values(audioElements.current).every(a => a.ended);
+            const allEnded = Object.values(audioFiles).every(a => a.ended);
             if (allEnded) {
               setIsPlaying(false);
               cancelAnimationFrame(animationRef.current);
