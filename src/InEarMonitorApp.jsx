@@ -64,6 +64,10 @@ export default function InEarMonitorApp() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLooping, setIsLooping] = useState(false);
+  const [loopStart, setLoopStart] = useState(0); // New state for loop start
+  const [loopEnd, setLoopEnd] = useState(0);   // New state for loop end
+  const [isDraggingLoopStart, setIsDraggingLoopStart] = useState(false); // New state for dragging loop start handle
+  const [isDraggingLoopEnd, setIsDraggingLoopEnd] = useState(false);     // New state for dragging loop end handle
   const audioElements = useRef({});
   const masterGainNode = useRef(null);
   const audioContext = useRef(null);
@@ -175,10 +179,19 @@ export default function InEarMonitorApp() {
             // Optimize event listeners
             const handleLoadedMetadata = () => {
               setDuration(audio.duration);
+              setLoopEnd(audio.duration); // Set loopEnd to duration when metadata loads
             };
             
             const handleEnded = () => {
-              if (!isLooping) {
+              if (isLooping && loopEnd > 0) {
+                // If looping is active and current time is at or beyond loopEnd, jump back to loopStart
+                Object.values(audioElements.current).forEach(audio => {
+                  audio.currentTime = loopStart;
+                });
+                if (!isPlaying) { // If not playing, ensure it starts playing for the loop
+                  startPlayback();
+                }
+              } else if (!isLooping) {
                 setIsPlaying(false);
                 cancelAnimationFrame(animationRef.current);
               }
@@ -821,7 +834,16 @@ export default function InEarMonitorApp() {
     const updateSeekBar = () => {
       const firstAudio = audioElements.current[Object.keys(audioElements.current)[0]];
       if (firstAudio) {
-        setCurrentTime(firstAudio.currentTime);
+        let newTime = firstAudio.currentTime;
+
+        // Loop logic: if looping is active and current time exceeds loopEnd, reset to loopStart
+        if (isLooping && loopEnd > 0 && newTime >= loopEnd) {
+          newTime = loopStart;
+          Object.values(audioElements.current).forEach(audio => {
+            audio.currentTime = loopStart;
+          });
+        }
+        setCurrentTime(newTime);
       }
       animationFrameId = requestAnimationFrame(updateSeekBar);
     };
@@ -835,7 +857,7 @@ export default function InEarMonitorApp() {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, audioFiles]);
+  }, [isPlaying, audioFiles, isLooping, loopStart, loopEnd]);
   
   const handleSeekChange = (e) => {
     const newTime = parseFloat(e.target.value);
@@ -1334,6 +1356,52 @@ export default function InEarMonitorApp() {
     );
   };
   
+  // Handle dragging for loop start and end points
+  const handleLoopStartMouseDown = (e) => {
+    setIsDraggingLoopStart(true);
+    e.preventDefault(); // Prevent default browser drag behavior
+  };
+
+  const handleLoopEndMouseDown = (e) => {
+    setIsDraggingLoopEnd(true);
+    e.preventDefault(); // Prevent default browser drag behavior
+  };
+
+  const handleMouseUp = () => {
+    setIsDraggingLoopStart(false);
+    setIsDraggingLoopEnd(false);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!seekBarRef.current || (!isDraggingLoopStart && !isDraggingLoopEnd)) return;
+
+    const seekBarRect = seekBarRef.current.getBoundingClientRect();
+    const newPos = (e.clientX - seekBarRect.left) / seekBarRect.width;
+    let newTime = newPos * duration;
+
+    // Clamp newTime within valid range [0, duration]
+    newTime = Math.max(0, Math.min(duration, newTime));
+
+    if (isDraggingLoopStart) {
+      // Ensure loopStart doesn't exceed loopEnd
+      setLoopStart(Math.min(newTime, loopEnd));
+    } else if (isDraggingLoopEnd) {
+      // Ensure loopEnd doesn't go below loopStart
+      setLoopEnd(Math.max(newTime, loopStart));
+    }
+  };
+
+  // Add global mouse event listeners for dragging
+  useEffect(() => {
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [isDraggingLoopStart, isDraggingLoopEnd, duration, loopStart, loopEnd]);
+  
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       {/* Header - Enhanced with gradient and better styling */}
@@ -1564,6 +1632,24 @@ export default function InEarMonitorApp() {
                             background: `linear-gradient(to right, #4F73E6 0%, #4F73E6 ${(currentTime / duration) * 100}%, #E2E8F0 ${(currentTime / duration) * 100}%, #E2E8F0 100%)`,
                           }}
                         />
+                        {isLooping && (
+                          <div
+                            className="absolute top-0 h-full bg-yellow-400 opacity-50 rounded-lg"
+                            style={{
+                              left: `${(loopStart / duration) * 100}%`,
+                              width: `${((loopEnd - loopStart) / duration) * 100}%`,
+                            }}
+                          >
+                            <div
+                              className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-yellow-500 rounded-full cursor-ew-resize shadow-md"
+                              onMouseDown={handleLoopStartMouseDown}
+                            ></div>
+                            <div
+                              className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-yellow-500 rounded-full cursor-ew-resize shadow-md"
+                              onMouseDown={handleLoopEndMouseDown}
+                            ></div>
+                          </div>
+                        )}
                         <div className="absolute -bottom-5 w-full flex justify-between">
                           <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                           <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
