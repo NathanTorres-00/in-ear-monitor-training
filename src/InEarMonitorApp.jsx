@@ -72,6 +72,8 @@ export default function InEarMonitorApp() {
   const animationRef = useRef(null);
   const seekBarRef = useRef(null);
   const audioSources = useRef({});
+  const canvasRef = useRef(null);
+  const analyserNodeRef = useRef(null);
   
   // Add quiz state
   const [quizAnswers, setQuizAnswers] = useState({
@@ -131,6 +133,11 @@ export default function InEarMonitorApp() {
               });
             }
           });
+
+          // Create and connect AnalyserNode
+          analyserNodeRef.current = audioContext.current.createAnalyser();
+          masterGainNode.current.connect(analyserNodeRef.current);
+          analyserNodeRef.current.connect(audioContext.current.destination);
         } catch (err) {
           console.error("Error creating audio context:", err);
           alert("Error initializing audio. Please try refreshing the page.");
@@ -216,6 +223,16 @@ export default function InEarMonitorApp() {
       audioSources.current = {};
       gainNodes.current = {};
       panNodes.current = {};
+      
+      // Clean up analyser node
+      if (analyserNodeRef.current) {
+        analyserNodeRef.current.disconnect();
+        analyserNodeRef.current = null;
+      }
+      if (audioContext.current) {
+        audioContext.current.close().catch(e => console.error("Error closing AudioContext:", e));
+        audioContext.current = null;
+      }
     };
   }, [audioFiles, isLooping]);
   
@@ -240,6 +257,62 @@ export default function InEarMonitorApp() {
       }
     });
   }, [panning]);
+  
+  // Add waveform visualization
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const canvasCtx = canvas.getContext('2d');
+    const analyser = analyserNodeRef.current;
+    
+    if (!analyser) return;
+
+    analyser.fftSize = 2048;
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const drawWaveform = () => {
+      animationRef.current = requestAnimationFrame(drawWaveform);
+
+      analyser.getByteTimeDomainData(dataArray);
+
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      canvasCtx.lineWidth = 2;
+      canvasCtx.strokeStyle = 'rgb(79, 70, 229)'; // Tailwind blue-600
+
+      canvasCtx.beginPath();
+
+      const sliceWidth = canvas.width * 1.0 / bufferLength;
+      let x = 0;
+
+      for(let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * canvas.height / 2;
+
+        if (i === 0) {
+          canvasCtx.moveTo(x, y);
+        } else {
+          canvasCtx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
+      }
+
+      canvasCtx.lineTo(canvas.width, canvas.height / 2);
+      canvasCtx.stroke();
+    };
+
+    if (isPlaying) {
+      drawWaveform();
+    } else {
+      cancelAnimationFrame(animationRef.current);
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    return () => {
+      cancelAnimationFrame(animationRef.current);
+    };
+  }, [isPlaying]);
   
   // Add function to compress audio
   const compressAudio = async (file) => {
@@ -744,10 +817,28 @@ export default function InEarMonitorApp() {
   const handleSeekChange = (e) => {
     const newTime = parseFloat(e.target.value);
     console.log("Seeking to time:", newTime);
+    
+    const wasPlayingBeforeSeek = isPlaying; // Store current playing state
+
+    // Pause all tracks before seeking
+    if (wasPlayingBeforeSeek) {
+      Object.values(audioElements.current).forEach(audio => {
+        audio.pause();
+      });
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+      setIsPlaying(false);
+    }
+
     Object.values(audioElements.current).forEach(audio => {
       audio.currentTime = newTime;
     });
     setCurrentTime(newTime);
+
+    // Resume playback if it was playing before seeking
+    if (wasPlayingBeforeSeek) {
+      playPause(); // This will call startPlayback internally if needed
+    }
   };
   
   const resetPlayback = () => {
@@ -1402,6 +1493,9 @@ export default function InEarMonitorApp() {
                     </div>
                   </div>
                   
+                  {/* Add canvas for waveform visualizer */}
+                  <canvas ref={canvasRef} className="w-full h-24 bg-gray-900 rounded-md mb-4"></canvas>
+
                   <div className="flex flex-col md:flex-row items-center mb-4">
                     <div className="flex space-x-3 mb-4 md:mb-0 md:mr-6">
                       <button 
@@ -1443,6 +1537,9 @@ export default function InEarMonitorApp() {
                           value={currentTime}
                           onChange={handleSeekChange}
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, #4F73E6 0%, #4F73E6 ${(currentTime / duration) * 100}%, #E2E8F0 ${(currentTime / duration) * 100}%, #E2E8F0 100%)`,
+                          }}
                         />
                         <div className="absolute -bottom-5 w-full flex justify-between">
                           <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
