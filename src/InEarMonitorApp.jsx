@@ -1252,21 +1252,15 @@ export default function InEarMonitorApp() {
     Object.entries(audioFiles).forEach(([channel, audio]) => {
       currentTimes[channel] = audio.currentTime;
       wasPaused[channel] = audio.paused;
-      audio.loop = !isLooping;
+      // audio.loop = !isLooping; // This line should be removed as loop property is on AudioBufferSourceNode
     });
 
     // If audio was playing, ensure it continues playing
     if (wasPlaying) {
       const playPromises = Object.entries(audioFiles).map(([channel, audio]) => {
-        audio.currentTime = currentTimes[channel];
-        if (wasPaused[channel]) {
-          return Promise.resolve(); // Skip if it was paused
-        }
-        return audio.play().catch(error => {
-          console.error(`Error playing audio for ${channel}:`, error);
-          setAudioErrors(prev => ({ ...prev, [channel]: "Error during loop transition" }));
-          return Promise.reject(error);
-        });
+        // Note: audio here is AudioBuffer, not AudioBufferSourceNode
+        // The actual playback logic for AudioBufferSourceNode is in playPause and startPlayback
+        return Promise.resolve(); // This function should not directly play AudioBuffer
       });
 
       Promise.all(playPromises)
@@ -1280,38 +1274,6 @@ export default function InEarMonitorApp() {
     }
   };
 
-  // Update the audio initialization to handle loop state changes
-  useEffect(() => {
-    if (Object.keys(audioFiles).length > 0) {
-      Object.entries(audioFiles).forEach(([channel, audio]) => {
-        audio.loop = isLooping;
-        
-        // Add event listener for loop state changes
-        audio.addEventListener('ended', () => {
-          if (isLooping) {
-            console.log(`Audio ${channel} looped`);
-            // Ensure the audio starts playing again if it should be looping
-            if (isPlaying && !audio.paused) {
-              audio.play().catch(error => {
-                console.error(`Error restarting loop for ${channel}:`, error);
-                setAudioErrors(prev => ({ ...prev, [channel]: "Error during loop" }));
-              });
-            }
-          } else {
-            console.log(`Audio ${channel} ended`);
-            // Check if all tracks have ended
-            const allEnded = Object.values(audioFiles).every(a => a.ended);
-            if (allEnded) {
-              setIsPlaying(false);
-              cancelAnimationFrame(animationRef.current);
-              animationRef.current = null;
-            }
-          }
-        });
-      });
-    }
-  }, [isLooping, isPlaying]);
-  
   // Add loading indicator component
   const LoadingIndicator = ({ progress }) => (
     <div className="w-full bg-gray-200 rounded-full h-2.5">
