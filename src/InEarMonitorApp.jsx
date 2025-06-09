@@ -1186,6 +1186,7 @@ export default function InEarMonitorApp() {
     drums: "🥁 Drums",
     bass: "🎸 Bass Guitar",
     keys: "🎹 Keyboards",
+    keys2: "🎹 Keyboards 2",
     leadVocals: "🎤 Lead Vocals",
     backgroundVocals: "🎤 Background Vocals",
     acousticGuitar: "🪕 Acoustic Guitar",
