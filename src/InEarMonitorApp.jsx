@@ -124,10 +124,14 @@ export default function InEarMonitorApp() {
           sampleRate: 44100
         });
         
-        // Create a single gain node for all channels
+        // Create a single gain node for all channels and connect to destination
         masterGainNode.current = audioContext.current.createGain();
         masterGainNode.current.connect(audioContext.current.destination);
-        masterGainNode.current.gain.value = sliderValues.master / 100;
+
+        // Create and connect AnalyserNode
+        analyserNodeRef.current = audioContext.current.createAnalyser();
+        masterGainNode.current.connect(analyserNodeRef.current);
+        analyserNodeRef.current.connect(audioContext.current.destination);
 
         // Optimize audio context state management
         audioContext.current.addEventListener('statechange', () => {
@@ -140,10 +144,6 @@ export default function InEarMonitorApp() {
           }
         });
 
-        // Create and connect AnalyserNode
-        analyserNodeRef.current = audioContext.current.createAnalyser();
-        masterGainNode.current.connect(analyserNodeRef.current);
-        analyserNodeRef.current.connect(audioContext.current.destination);
       } catch (err) {
         console.error("Error creating audio context:", err);
         alert("Error initializing audio. Please try refreshing the page.");
@@ -156,12 +156,13 @@ export default function InEarMonitorApp() {
         analyserNodeRef.current.disconnect();
         analyserNodeRef.current = null;
       }
+      // Close audio context on unmount
       if (audioContext.current) {
         audioContext.current.close().catch(e => console.error("Error closing AudioContext:", e));
         audioContext.current = null;
       }
     };
-  }, [isPlaying, sliderValues.master]); // Added sliderValues.master dependency
+  }, []); // Empty dependency array means this effect runs only once on mount
   
   // Create audio nodes for each channel (moved from initial useEffect)
   useEffect(() => {
