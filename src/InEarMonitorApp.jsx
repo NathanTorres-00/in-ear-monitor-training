@@ -30,6 +30,7 @@ export default function InEarMonitorApp() {
     drums: 60,
     bass: 60,
     keys: 55,
+    keys2: 55, // New keyboard channel
     leadVocals: 60,
     backgroundVocals: 50,
     acousticGuitar: 55,
@@ -48,6 +49,7 @@ export default function InEarMonitorApp() {
     drums: 0,
     bass: 0,
     keys: -30,
+    keys2: 30, // New keyboard channel panning
     leadVocals: 20,
     backgroundVocals: -20,
     acousticGuitar: 40,
@@ -598,7 +600,7 @@ export default function InEarMonitorApp() {
   // Update the audio upload section to show compression status
   const renderAudioUploadSection = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {['vocals', 'drums', 'bass', 'keys', 'acousticGuitar', 'electricGuitar', 'electricGuitar2', 'percussion', 'synth'].map(channel => (
+      {['vocals', 'drums', 'bass', 'keys', 'keys2', 'acousticGuitar', 'electricGuitar', 'electricGuitar2', 'percussion', 'synth'].map(channel => (
         <div key={channel} className={`border rounded-lg p-4 transition-all hover:shadow-md border-l-4 ${getChannelColor(channel) === 'blue' ? 'border-l-blue-500' : getChannelColor(channel) === 'green' ? 'border-l-green-500' : getChannelColor(channel) === 'purple' ? 'border-l-purple-500' : 'border-l-orange-500'}`}>
           <div className="flex justify-between items-center mb-3">
             <h4 className="font-medium text-gray-800">{channelLabels[channel] || channel}</h4>
