@@ -19,7 +19,6 @@ export default function InEarMonitorApp() {
   const [activeTab, setActiveTab] = useState('learn');
   const [activeTopic, setActiveTopic] = useState('intro');
   const [showMenu, setShowMenu] = useState(false);
-  const [showUploadSection, setShowUploadSection] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState({});
   const [audioErrors, setAudioErrors] = useState({});
@@ -61,7 +60,6 @@ export default function InEarMonitorApp() {
   });
 
   const [activeChannel, setActiveChannel] = useState(null);
-  const [audioFiles, setAudioFiles] = useState({});
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -77,7 +75,6 @@ export default function InEarMonitorApp() {
   const animationRef = useRef(null);
   const seekBarRef = useRef(null);
   const audioSources = useRef({}); // This will store AudioBufferSourceNodes
-  const originalAudioFiles = useRef({}); // New ref to store original File objects
   const canvasRef = useRef(null);
   const analyserNodeRef = useRef(null);
   
@@ -90,31 +87,64 @@ export default function InEarMonitorApp() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [compressionProgress, setCompressionProgress] = useState({});
-  const bufferPool = useRef(new Map());
-  const lastAccessTime = useRef(new Map());
-  
   const [errorStates, setErrorStates] = useState({});
-  const retryCounts = useRef({});
-  const recoveryTimeouts = useRef({});
+  const [retryCounts, setRetryCounts] = useState({});
+  const [recoveryTimeouts, setRecoveryTimeouts] = useState({});
   
-  // Add buffer pool management
-  const manageBufferPool = () => {
-    const now = Date.now();
-    const entries = Array.from(bufferPool.current.entries());
-    
-    // Sort by last access time
-    entries.sort((a, b) => lastAccessTime.current.get(a[0]) - lastAccessTime.current.get(b[0]));
-    
-    // Remove oldest buffers if pool is too large
-    while (bufferPool.current.size > BUFFER_POOL_SIZE) {
-      const [oldestKey] = entries.shift();
-      bufferPool.current.delete(oldestKey);
-      lastAccessTime.current.delete(oldestKey);
+  // Add state for preloaded tracks
+  const [availableTracks, setAvailableTracks] = useState([
+    {
+      id: 'song1',
+      name: 'Song 1',
+      bpm: 120,
+      key: 'C',
+      stems: [
+        { channel: 'drums', file: '/audio/song1_drums.wav' },
+        { channel: 'bass', file: '/audio/song1_bass.wav' },
+        { channel: 'guitar', file: '/audio/song1_guitar.wav' },
+        { channel: 'vocals', file: '/audio/song1_vocals.wav' },
+        { channel: 'keys', file: '/audio/song1_keys.wav' }
+      ]
+    },
+    {
+      id: 'song2',
+      name: 'Song 2',
+      bpm: 90,
+      key: 'G',
+      stems: [
+        { channel: 'drums', file: '/audio/song2_drums.wav' },
+        { channel: 'bass', file: '/audio/song2_bass.wav' },
+        { channel: 'guitar', file: '/audio/song2_guitar.wav' },
+        { channel: 'vocals', file: '/audio/song2_vocals.wav' },
+        { channel: 'keys', file: '/audio/song2_keys.wav' }
+      ]
     }
+  ]);
+  const [selectedTrack, setSelectedTrack] = useState(availableTracks[0]);
+
+  // Add state for loaded stems
+  const [audioStems, setAudioStems] = useState({});
+
+  // Function to load stems for selected track
+  const loadStems = async (track) => {
+    if (!audioContext.current) return;
+    const stems = {};
+    for (const stem of track.stems) {
+      const response = await fetch(stem.file);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
+      stems[stem.channel] = audioBuffer;
+    }
+    setAudioStems(stems);
+    setDuration(Math.max(...Object.values(stems).map(buf => buf.duration)));
+    setLoopEnd(Math.max(...Object.values(stems).map(buf => buf.duration)));
   };
 
+  // Load stems when selectedTrack changes
+  useEffect(() => {
+    loadStems(selectedTrack);
+  }, [selectedTrack]);
+  
   // Initialize Web Audio API context
   useEffect(() => {
     if (!audioContext.current) {
@@ -168,7 +198,7 @@ export default function InEarMonitorApp() {
   useEffect(() => {
     if (!audioContext.current) return;
 
-    Object.keys(audioFiles).forEach(channel => {
+    Object.keys(audioStems).forEach(channel => {
       try {
         // Create and connect audio nodes efficiently if they don't exist
         if (!gainNodes.current[channel]) {
@@ -191,7 +221,7 @@ export default function InEarMonitorApp() {
         alert(`Error setting up audio nodes for ${channel}. Please try again.`);
       }
     });
-  }, [audioFiles, sliderValues, panning]); // Dependencies for node creation
+  }, [audioStems, sliderValues, panning]); // Dependencies for node creation
   
   // Update gain and pan values when sliders change (existing useEffect)
   useEffect(() => {
@@ -271,100 +301,6 @@ export default function InEarMonitorApp() {
     };
   }, [isPlaying]);
   
-  // Add function to compress audio
-  const compressAudio = async (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const arrayBuffer = e.target.result;
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          
-          // Create offline context for compression
-          const offlineContext = new OfflineAudioContext(
-            audioBuffer.numberOfChannels,
-            audioBuffer.length,
-            audioBuffer.sampleRate
-          );
-          
-          // Create buffer source
-          const source = offlineContext.createBufferSource();
-          source.buffer = audioBuffer;
-          
-          // Create compressor
-          const compressor = offlineContext.createDynamicsCompressor();
-          compressor.threshold.value = -24;
-          compressor.knee.value = 30;
-          compressor.ratio.value = 12;
-          compressor.attack.value = 0.003;
-          compressor.release.value = 0.25;
-          
-          // Connect nodes
-          source.connect(compressor);
-          compressor.connect(offlineContext.destination);
-          
-          // Start processing
-          source.start(0);
-          const renderedBuffer = await offlineContext.startRendering();
-          
-          // Convert back to blob
-          const wavBlob = await audioBufferToWav(renderedBuffer);
-          resolve(new File([wavBlob], file.name, { type: 'audio/wav' }));
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
-  // Add function to convert AudioBuffer to WAV
-  const audioBufferToWav = async (buffer) => {
-    const numChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const format = 1; // PCM
-    const bitDepth = 16;
-    
-    const bytesPerSample = bitDepth / 8;
-    const blockAlign = numChannels * bytesPerSample;
-    
-    const wav = new ArrayBuffer(44 + buffer.length * blockAlign);
-    const view = new DataView(wav);
-    
-    // Write WAV header
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + buffer.length * blockAlign, true);
-    writeString(view, 8, 'WAVE');
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bitDepth, true);
-    writeString(view, 36, 'data');
-    view.setUint32(40, buffer.length * blockAlign, true);
-    
-    // Write audio data
-    const floatTo16BitPCM = (output, offset, input) => {
-      for (let i = 0; i < input.length; i++, offset += 2) {
-        const s = Math.max(-1, Math.min(1, input[i]));
-        output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-      }
-    };
-
-    let offset = 44;
-    for (let i = 0; i < numChannels; i++) {
-      floatTo16BitPCM(view, offset, buffer.getChannelData(i));
-      offset += buffer.length * bytesPerSample;
-    }
-    
-    return new Blob([wav], { type: 'audio/wav' });
-  };
-
   // Add function to write string to DataView
   const writeString = (view, offset, string) => {
     for (let i = 0; i < string.length; i++) {
@@ -377,19 +313,19 @@ export default function InEarMonitorApp() {
     console.error(`Error during ${operation} for ${channel}:`, error);
     setErrorStates(prev => ({ ...prev, [channel]: { type: operation, message: error.message } }));
 
-    if (retryCounts.current[channel] === undefined) {
-      retryCounts.current[channel] = 0;
+    if (retryCounts[channel] === undefined) {
+      retryCounts[channel] = 0;
     }
 
-    if (recoveryTimeouts.current[channel]) {
-      clearTimeout(recoveryTimeouts.current[channel]);
+    if (recoveryTimeouts[channel]) {
+      clearTimeout(recoveryTimeouts[channel]);
     }
 
-    if (retryCounts.current[channel] < MAX_RETRY_ATTEMPTS) {
-      retryCounts.current[channel]++;
-      console.log(`Retrying ${operation} for ${channel} (attempt ${retryCounts.current[channel]})`);
+    if (retryCounts[channel] < MAX_RETRY_ATTEMPTS) {
+      retryCounts[channel]++;
+      console.log(`Retrying ${operation} for ${channel} (attempt ${retryCounts[channel]})`);
 
-      recoveryTimeouts.current[channel] = setTimeout(async () => {
+      recoveryTimeouts[channel] = setTimeout(async () => {
         try {
           if (operation === 'load') {
             await recoverAudioLoad(channel);
@@ -399,7 +335,7 @@ export default function InEarMonitorApp() {
             await recoverAudioProcessing(channel);
           }
           setErrorStates(prev => ({ ...prev, [channel]: null }));
-          retryCounts.current[channel] = 0; // Reset on successful recovery
+          retryCounts[channel] = 0; // Reset on successful recovery
         } catch (recoverError) {
           console.error(`Failed to recover ${operation} for ${channel} after retry:`, recoverError);
           setAudioErrors(prev => ({ ...prev, [channel]: `Failed to ${operation} audio for ${channel} after multiple retries.` }));
@@ -413,17 +349,15 @@ export default function InEarMonitorApp() {
   // Add recovery functions
   const recoverAudioLoad = async (channel) => {
     console.log(`Attempting to recover audio load for ${channel}`);
-    const file = originalAudioFiles.current[channel]; // Use originalAudioFiles
+    const file = audioStems[channel]; // Use audioStems
     if (!file) throw new Error("Original file not found for recovery.");
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       if (!audioContext.current) throw new Error("AudioContext not available for decoding during recovery."); // Add null check
       const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
-      bufferPool.current.set(file.name, audioBuffer); // Using file.name as key for now
-      lastAccessTime.current.set(file.name, Date.now());
-      manageBufferPool();
-      setAudioFiles(prev => ({ ...prev, [channel]: audioBuffer })); // Update audioFiles to hold AudioBuffer
+      audioBufferCache.set(file.name, audioBuffer); // Using file.name as key for now
+      setAudioStems(prev => ({ ...prev, [channel]: audioBuffer })); // Update audioStems to hold AudioBuffer
       setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration)); // Update duration on recovery, only if longer
       setLoopEnd(prevLoopEnd => Math.max(prevLoopEnd, audioBuffer.duration));    // Set loopEnd to duration on recovery, only if longer
     } catch (error) {
@@ -433,7 +367,7 @@ export default function InEarMonitorApp() {
 
   const recoverAudioPlay = async (channel) => {
     console.log(`Attempting to recover audio playback for ${channel}`);
-    const audioBuffer = audioFiles[channel];
+    const audioBuffer = audioStems[channel];
     if (!audioBuffer) throw new Error("AudioBuffer not found for playback recovery.");
 
     try {
@@ -481,17 +415,15 @@ export default function InEarMonitorApp() {
 
   const recoverAudioProcessing = async (channel) => {
     console.log(`Attempting to recover audio processing for ${channel}`);
-    const file = originalAudioFiles.current[channel]; // Use originalAudioFiles
+    const file = audioStems[channel]; // Use audioStems
     if (!file) throw new Error("Original file not found for processing recovery.");
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       if (!audioContext.current) throw new Error("AudioContext not available for decoding during recovery."); // Add null check
       const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
-      bufferPool.current.set(file.name, audioBuffer);
-      lastAccessTime.current.set(file.name, Date.now());
-      manageBufferPool();
-      setAudioFiles(prev => ({ ...prev, [channel]: audioBuffer })); // Update to processed AudioBuffer
+      audioBufferCache.set(file.name, audioBuffer);
+      setAudioStems(prev => ({ ...prev, [channel]: audioBuffer }));
       setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration)); // Update duration on recovery, only if longer
       setLoopEnd(prevLoopEnd => Math.max(prevLoopEnd, audioBuffer.duration));    // Set loopEnd to duration on recovery, only if longer
     } catch (error) {
@@ -499,71 +431,15 @@ export default function InEarMonitorApp() {
     }
   };
 
-  // Update handleFileUpload with error recovery
-  const handleFileUpload = async (channel, e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('audio/')) {
-      setIsLoading(true);
-      setLoadingProgress(prev => ({ ...prev, [channel]: 0 }));
-      setAudioErrors(prev => ({ ...prev, [channel]: null }));
-      
-      try {
-        const cacheKey = `${file.name}-${file.size}`;
-        let audioBuffer = bufferPool.current.get(cacheKey);
-        
-        // Store the original File object for potential recovery
-        originalAudioFiles.current[channel] = file;
-
-        if (!audioBuffer) {
-          setIsCompressing(true);
-          setCompressionProgress(prev => ({ ...prev, [channel]: 0 }));
-          
-          try {
-            // Read file as ArrayBuffer
-            const arrayBuffer = await file.arrayBuffer();
-            // Decode audio data into AudioBuffer
-            audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
-          } catch (error) {
-            await handleErrorRecovery(channel, error, 'process');
-            return;
-          }
-          
-          bufferPool.current.set(cacheKey, audioBuffer);
-          lastAccessTime.current.set(cacheKey, Date.now());
-          manageBufferPool();
-        }
-        
-        setAudioFiles(prev => ({
-          ...prev,
-          [channel]: audioBuffer // Store AudioBuffer directly
-        }));
-        
-        // Set duration when audioBuffer is loaded, only if it's the longest track
-        if (audioBuffer && audioBuffer.duration) {
-          setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration));
-          setLoopEnd(prevLoopEnd => Math.max(prevLoopEnd, audioBuffer.duration));
-        }
-
-        setLoadingProgress(prev => ({ ...prev, [channel]: 100 }));
-      } catch (error) {
-        await handleErrorRecovery(channel, error, 'load');
-      } finally {
-        setIsLoading(false);
-        setIsCompressing(false);
-      }
-    }
-  };
-
   // Add periodic buffer cleanup
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
-      manageBufferPool();
+      // No need to clear bufferPool or lastAccessTime here if we want to retain cached buffers across component unmounts
+      // or handle it more explicitly via a clear all button.
     }, BUFFER_CLEANUP_INTERVAL);
 
     return () => {
       clearInterval(cleanupInterval);
-      // No need to clear bufferPool or lastAccessTime here if we want to retain cached buffers across component unmounts
-      // or handle it more explicitly via a clear all button.
     };
   }, []);
 
@@ -579,700 +455,11 @@ export default function InEarMonitorApp() {
     delete panNodes.current[channel];
   };
 
-  // Add compression status indicator
-  const CompressionStatus = ({ progress }) => (
-    <div className="mt-2">
-      <div className="flex items-center text-sm text-blue-600">
-        <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-        </svg>
-        Compressing: {progress}%
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-        <div 
-          className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-          style={{ width: `${progress}%` }}
-        ></div>
-      </div>
-    </div>
-  );
-
-  // Update the audio upload section to show compression status
-  const renderAudioUploadSection = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {['vocals', 'drums', 'bass', 'keys', 'keys2', 'acousticGuitar', 'electricGuitar', 'electricGuitar2', 'percussion', 'synth'].map(channel => (
-        <div key={channel} className={`border rounded-lg p-4 transition-all hover:shadow-md border-l-4 ${getChannelColor(channel) === 'blue' ? 'border-l-blue-500' : getChannelColor(channel) === 'green' ? 'border-l-green-500' : getChannelColor(channel) === 'purple' ? 'border-l-purple-500' : 'border-l-orange-500'}`}>
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="font-medium text-gray-800">{channelLabels[channel] || channel}</h4>
-            {audioFiles[channel] && (
-              <div className="flex items-center space-x-2">
-                <StatusIndicator status={isPlaying ? 'playing' : 'paused'} />
-                {audioErrors[channel] && <StatusIndicator status="error" />}
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center">
-            <label className={`flex items-center justify-center px-4 py-2 rounded-md cursor-pointer transition-colors ${audioFiles[channel] ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-blue-100 text-blue-800 hover:bg-blue-200'}`}>
-              <Upload size={16} className="mr-2" />
-              <span>{audioFiles[channel] ? 'Change' : 'Upload'}</span>
-              <input 
-                type="file" 
-                accept="audio/*" 
-                className="hidden" 
-                onChange={(e) => handleFileUpload(channel, e)} 
-              />
-            </label>
-            {audioFiles[channel] && (
-              <span className="ml-2 text-sm text-gray-500 truncate max-w-xs">
-                {audioFiles[channel].name}
-              </span>
-            )}
-          </div>
-
-          {isCompressing && compressionProgress[channel] !== undefined && (
-            <CompressionStatus progress={compressionProgress[channel]} />
-          )}
-          
-          {loadingProgress[channel] !== undefined && (
-            <div className="mt-2">
-              <LoadingIndicator progress={loadingProgress[channel]} />
-            </div>
-          )}
-          
-          <ErrorStateDisplay channel={channel} />
-          
-          {audioErrors[channel] && (
-            <ErrorMessage message={audioErrors[channel]} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-  
-  const playPause = async () => {
-    if (Object.keys(audioFiles).length === 0 || !audioContext.current) return;
-    
-    if (isPlaying) {
-      // Stop all active AudioBufferSourceNodes
-      Object.values(audioSources.current).forEach(source => {
-        if (source) {
-          source.stop();
-          source.disconnect();
-        }
-      });
-      audioSources.current = {}; // Clear current sources
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-      setIsPlaying(false);
-    } else {
-      try {
-        if (audioContext.current.state === 'suspended') {
-          await audioContext.current.resume();
-        }
-        
-        const promises = Object.entries(audioFiles).map(async ([channel, audioBuffer]) => {
-          if (!audioBuffer) return; // Skip if no buffer
-
-          const source = audioContext.current.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(gainNodes.current[channel]); // Connect to existing gain node
-          
-          // Set start offset based on current time or loop start
-          const startOffset = isLooping && loopEnd > 0 ? loopStart : currentTime;
-
-          source.start(0, startOffset); // Start playback from current time or loop start
-          audioSources.current[channel] = source; // Store the source node
-
-          source.onended = () => {
-            // Handle loop logic or pause when ended
-            if (isLooping && loopEnd > 0) {
-              // If looping, restart the source from loopStart
-              // This requires creating a new AudioBufferSourceNode as they cannot be reused
-              const newSource = audioContext.current.createBufferSource();
-              newSource.buffer = audioBuffer;
-              newSource.connect(gainNodes.current[channel]);
-              newSource.start(0, loopStart); // Restart from loopStart
-              audioSources.current[channel] = newSource; // Update the reference
-              newSource.onended = source.onended; // Reassign the onended handler
-            } else if (!isLooping) {
-              // If not looping, and all sources have ended, stop playback
-              const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && (s.context.currentTime - s.playbackStartOffset) >= s.buffer.duration);
-              if (allEnded) {
-                setIsPlaying(false);
-                cancelAnimationFrame(animationRef.current);
-                animationRef.current = null;
-              }
-            }
-          };
-        });
-        
-        await Promise.all(promises);
-        setIsPlaying(true);
-        
-        // Start seek bar animation (this will now use currentTime for display)
-        const updateSeekBar = () => {
-          if (!isPlaying) return; // Stop animation if not playing
-          // currentTime will be updated based on global audio context time and start time of playback
-          animationRef.current = requestAnimationFrame(updateSeekBar);
-        };
-        
-        animationRef.current = requestAnimationFrame(updateSeekBar);
-      } catch (error) {
-        console.error("Error during playback:", error);
-        setIsPlaying(false);
-      }
-    }
-  };
-
-  const startPlayback = () => {
-    if (Object.keys(audioFiles).length === 0 || !audioContext.current) return;
-
-    const firstAudioBuffer = audioFiles[Object.keys(audioFiles)[0]];
-    let startTime = isLooping && loopEnd > 0 ? loopStart : currentTime; // Start from loopStart if looping
-    
-    console.log("Starting playback at time:", startTime);
-    
-    const promises = Object.entries(audioFiles).map(async ([channel, audioBuffer]) => {
-      if (!audioBuffer) return; // Skip if no buffer
-
-      const source = audioContext.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(gainNodes.current[channel]);
-      
-      source.start(0, startTime); // Start playback from calculated startTime
-      audioSources.current[channel] = source;
-
-      source.onended = () => {
-        if (isLooping && loopEnd > 0) {
-          const newSource = audioContext.current.createBufferSource();
-          newSource.buffer = audioBuffer;
-          newSource.connect(gainNodes.current[channel]);
-          newSource.start(0, loopStart); // Restart from loopStart
-          audioSources.current[channel] = newSource;
-          newSource.onended = source.onended;
-        } else if (!isLooping) {
-          const allEnded = Object.values(audioSources.current).every(s => s && s.buffer && (s.context.currentTime - s.playbackStartOffset) >= s.buffer.duration);
-          if (allEnded) {
-            setIsPlaying(false);
-            cancelAnimationFrame(animationRef.current);
-            animationRef.current = null;
-          }
-        }
-      };
-    });
-    
-    Promise.all(promises)
-      .then(() => {
-        console.log("All audio tracks started successfully");
-        setIsPlaying(true);
-        
-        // Animation for seek bar
-        const updateSeekBar = () => {
-          if (!isPlaying) return; // Stop animation if not playing
-          // currentTime will be updated based on global audio context time and start time of playback
-          animationRef.current = requestAnimationFrame(updateSeekBar);
-        };
-        
-        animationRef.current = requestAnimationFrame(updateSeekBar);
-      })
-      .catch(error => {
-        console.error("Could not play all tracks:", error);
-        alert("Error playing audio. Please try again.");
-        setIsPlaying(false);
-      });
-  };
-
-  // Cleanup animation frame on unmount
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      // Also stop and disconnect all sources on unmount
-      Object.values(audioSources.current).forEach(source => {
-        if (source) {
-          source.stop();
-          source.disconnect();
-        }
-      });
-      audioSources.current = {};
-    };
-  }, []);
-
-  // Dedicated useEffect for seek bar animation
-  useEffect(() => {
-    let animationFrameId;
-    let lastPlaybackTime = audioContext.current ? audioContext.current.currentTime : 0;
-
-    const updateSeekBar = () => {
-      if (!audioContext.current || !isPlaying) {
-        setCurrentTime(0); // Reset currentTime when not playing or context not ready
-        return;
-      }
-
-      const currentContextTime = audioContext.current.currentTime;
-      let elapsedPlaybackTime = currentContextTime - lastPlaybackTime;
-
-      let newTime = currentTime + elapsedPlaybackTime;
-
-      if (isLooping && loopEnd > 0) {
-        // If current time exceeds loopEnd, reset to loopStart
-        if (newTime >= loopEnd) {
-          newTime = loopStart + (newTime - loopEnd); // Adjust time within loop
-          // For AudioBufferSourceNode, stopping and starting is needed to loop seamlessly
-          Object.values(audioSources.current).forEach(source => {
-            if (source) {
-              source.stop();
-              source.disconnect();
-              // Recreate and start new source for seamless loop
-              const newSource = audioContext.current.createBufferSource();
-              newSource.buffer = source.buffer;
-              newSource.connect(gainNodes.current[source.channel]); // Assuming channel info is available or can be passed
-              newSource.start(0, loopStart); 
-              audioSources.current[source.channel] = newSource;
-              newSource.onended = source.onended;
-            }
-          });
-        }
-      } else if (newTime >= duration && duration > 0) { // Check if reached end of full track
-        newTime = duration; // Cap at duration
-        setIsPlaying(false);
-        cancelAnimationFrame(animationFrameId);
-        // Stop all sources at the end of the track
-        Object.values(audioSources.current).forEach(source => {
-          if (source) {
-            source.stop();
-            source.disconnect();
-          }
-        });
-        audioSources.current = {};
-      }
-
-      setCurrentTime(newTime);
-      lastPlaybackTime = currentContextTime; // Update lastPlaybackTime for next frame
-      animationFrameId = requestAnimationFrame(updateSeekBar);
-    };
-
-    if (isPlaying && audioContext.current) {
-      lastPlaybackTime = audioContext.current.currentTime;
-      animationFrameId = requestAnimationFrame(updateSeekBar);
-    } else {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, [isPlaying, audioFiles, isLooping, loopStart, loopEnd, duration, audioContext.current]);
-  
-  const handleSeekChange = (e) => {
-    const newTime = parseFloat(e.target.value);
-    console.log("Seeking to time:", newTime);
-    
-    const wasPlayingBeforeSeek = isPlaying; // Store current playing state
-
-    // Stop all current sources for seeking
-    Object.values(audioSources.current).forEach(source => {
-      if (source) {
-        source.stop();
-        source.disconnect();
-      }
-    });
-    audioSources.current = {}; // Clear sources
-    cancelAnimationFrame(animationRef.current);
-    animationRef.current = null;
-    setIsPlaying(false);
-
-    setCurrentTime(newTime);
-
-    // Resume playback if it was playing before seeking
-    if (wasPlayingBeforeSeek) {
-      playPause(); // This will recreate and start new sources
-    }
-  };
-  
-  const resetPlayback = () => {
-    console.log("Resetting playback");
-    Object.values(audioSources.current).forEach(source => {
-      if (source) {
-        source.stop();
-        source.disconnect();
-      }
-    });
-    audioSources.current = {};
-    setCurrentTime(0);
-    setIsPlaying(false);
-    cancelAnimationFrame(animationRef.current);
-  };
-  
-  const formatTime = (time) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  };
-  
-  const handleSliderChange = (channel, value) => {
-    setSliderValues(prev => ({
-      ...prev,
-      [channel]: parseInt(value)
-    }));
-  };
-  
-  const handlePanningChange = (channel, value) => {
-    setPanning(prev => ({
-      ...prev,
-      [channel]: parseInt(value)
-    }));
-  };
-  
-  const learningTopics = [
-    { id: 'intro', title: 'Introduction', icon: <Info /> },
-    { id: 'equipment', title: 'In-Ear Monitor Basics', icon: <Headphones /> },
-    { id: 'mixing', title: 'Mixing Fundamentals', icon: <Sliders /> },
-    { id: 'buildingMix', title: 'Building a Good Mix', icon: <Volume2 /> },
-    { id: 'troubleshooting', title: 'Troubleshooting', icon: <HelpCircle /> },
-  ];
-  
-  const topicContent = {
-    intro: {
-      title: 'Welcome to In-Ear Monitor Training',
-      content: (
-        <div>
-          <p className="mb-4">This app will help you learn best practices for mixing your own in-ear monitors.</p>
-          <p className="mb-4">By the end of this training, you'll feel well equipped and confident when mixing, whether you're a new or seasoned team member.</p>
-          <div className="bg-blue-100 p-4 rounded-lg mb-4">
-            <h3 className="font-semibold mb-2">What you'll learn:</h3>
-            <ul className="list-disc pl-5">
-              <li>In-ear monitor basics and best practices</li>
-              <li>How to create an effective mix</li>
-              <li>Channel prioritization and mix building</li>
-              <li>Troubleshooting common issues</li>
-            </ul>
-          </div>
-          <button 
-            className="bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center hover:bg-blue-700 transition-colors" 
-            onClick={() => setActiveTopic('equipment')}
-          >
-            <PlayCircle className="mr-2" size={18} />
-            Start Training
-          </button>
-        </div>
-      )
-    },
-    equipment: {
-      title: 'In-Ear Monitor Basics',
-      content: (
-        <div>
-          <h3 className="font-semibold mb-2">Finding the Right Fit</h3>
-          <p className="mb-4">A proper fit is crucial for quality monitoring. A snug fit will:</p>
-          <ul className="list-disc pl-5 mb-4">
-            <li>Prevent your in-ears from falling out</li>
-            <li>Provide clearer and more precise sound</li>
-            <li>Help you hear the full frequency range (especially bass)</li>
-            <li>Allow you to monitor at safer volume levels</li>
-          </ul>
-          
-          <div className="bg-yellow-100 p-4 rounded-lg mb-4">
-            <h3 className="font-semibold mb-2">Recommendation:</h3>
-            <p>Consider investing in custom in-ear monitors. Though pricier, they:</p>
-            <ul className="list-disc pl-5">
-              <li>Fit your ears perfectly</li>
-              <li>Provide better noise isolation</li>
-              <li>Typically have higher quality drivers</li>
-              <li>Enable clearer detail and better overall tone</li>
-            </ul>
-          </div>
-          
-          <div className="flex justify-between mt-6">
-            <button 
-              className="bg-gray-500 text-white py-2 px-4 rounded-lg flex items-center hover:bg-gray-600 transition-colors"
-              onClick={() => setActiveTopic('intro')}
-            >
-              Previous
-            </button>
-            <button 
-              className="bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center hover:bg-blue-700 transition-colors"
-              onClick={() => setActiveTopic('mixing')}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )
-    },
-    mixing: {
-      title: 'Mixing Fundamentals',
-      content: (
-        <div>
-          <div className="mb-6">
-            <h3 className="font-semibold mb-2">The Busy Mix</h3>
-            <div className="bg-red-100 p-3 rounded-md mb-4">
-              <p>Having everything cranked up doesn't mean you have a good mix!</p>
-            </div>
-            <p className="mb-4">When everything is at the same volume level, you create a chaotic, fatiguing mix that doesn't highlight what's important.</p>
-          </div>
-          
-          <div className="mb-6">
-            <h3 className="font-semibold mb-2">The Minimal Mix</h3>
-            <div className="bg-orange-100 p-3 rounded-md mb-4">
-              <p>Using only a few channels isn't effective either.</p>
-            </div>
-            <p className="mb-4">While "just myself, drums and click" might seem simpler, you'll miss important musical cues and won't be properly connected with your team.</p>
-          </div>
-          
-          <div className="mb-6">
-            <h3 className="font-semibold mb-2">The Good Mix</h3>
-            <div className="bg-green-100 p-3 rounded-md mb-4">
-              <p>A balanced mix with proper priorities creates clarity and musicality.</p>
-            </div>
-            <p className="mb-4">Start with a master volume between 50-75% to give yourself headroom. Prioritize channels according to your role.</p>
-          </div>
-          
-          <div className="flex justify-between mt-6">
-            <button 
-              className="bg-gray-500 text-white py-2 px-4 rounded-lg flex items-center hover:bg-gray-600 transition-colors"
-              onClick={() => setActiveTopic('equipment')}
-            >
-              Previous
-            </button>
-            <button 
-              className="bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center hover:bg-blue-700 transition-colors"
-              onClick={() => setActiveTopic('buildingMix')}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )
-    },
-    buildingMix: {
-      title: 'Building a Good Mix',
-      content: (
-        <div>
-          <h3 className="font-semibold mb-2">Start With Yourself</h3>
-          <p className="mb-4">Begin with your own voice or instrument at a comfortable, present level. This forms the foundation of your mix.</p>
-          
-          <h3 className="font-semibold mb-2">Prioritize Your Channels</h3>
-          <p className="mb-4">For vocalists, here's a recommended priority order:</p>
-          <ol className="list-decimal pl-5 mb-4">
-            <li>Your voice</li>
-            <li>Click</li>
-            <li>Music Director</li>
-            <li>Pastor/Speaker Mic</li>
-            <li>Drums</li>
-            <li>Bass</li>
-            <li>Piano/Keys</li>
-            <li>Lead vocalists</li>
-            <li>Other vocalists</li>
-            <li>Acoustic Guitar</li>
-            <li>Electric Guitar</li>
-            <li>Percussion</li>
-            <li>Keys 2/Synth</li>
-            <li>Tracks</li>
-          </ol>
-          
-          <h3 className="font-semibold mb-2">Use Panning</h3>
-          <p className="mb-4">Panning instruments in the stereo field creates space and separation without adjusting volume. This helps distinguish similar instruments and creates a more natural sound.</p>
-          
-          <div className="bg-blue-100 p-3 rounded-md mb-4">
-            <p>Example: Pan two acoustic guitars - one left and one right - to hear both clearly without them competing for the same space.</p>
-          </div>
-          
-          <div className="flex justify-between mt-6">
-            <button 
-              className="bg-gray-500 text-white py-2 px-4 rounded-lg flex items-center hover:bg-gray-600 transition-colors"
-              onClick={() => setActiveTopic('mixing')}
-            >
-              Previous
-            </button>
-            <button 
-              className="bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center hover:bg-blue-700 transition-colors"
-              onClick={() => setActiveTopic('troubleshooting')}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )
-    },
-    troubleshooting: {
-      title: 'Troubleshooting',
-      content: (
-        <div>
-          <h3 className="font-semibold mb-2">Common Issues & Solutions</h3>
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-blue-700">ME-1 Users</h4>
-            <p className="pl-4">Missing channels on device? Communicate with audio engineer or nearest tech.</p>
-          </div>
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-blue-700">Wireless Pack Users</h4>
-            <ul className="list-disc pl-8">
-              <li><strong>Mix not changing?</strong> 
-                <ul className="pl-4">
-                  <li>Verify you have the right pack or iPad</li>
-                  <li>Ensure iPad mixing account corresponds with your pack</li>
-                </ul>
-              </li>
-              <li><strong>Signal Dropouts?</strong> 
-                <ul className="pl-4">
-                  <li>Check that the antenna is attached properly</li>
-                </ul>
-              </li>
-            </ul>
-          </div>
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-blue-700">Vocalists</h4>
-            <ul className="list-disc pl-8">
-              <li><strong>Mix not changing when checking mic?</strong> 
-                <ul className="pl-4">
-                  <li>Verify you have the right wireless mic</li>
-                </ul>
-              </li>
-              <li><strong>Not hearing clearly?</strong> 
-                <ul className="pl-4">
-                  <li>Ensure all cables are fully attached</li>
-                </ul>
-              </li>
-              <li><strong>Earbuds falling out?</strong> 
-                <ul className="pl-4">
-                  <li>Try larger buds</li>
-                </ul>
-              </li>
-              <li><strong>One earbud not working?</strong> 
-                <ul className="pl-4">
-                  <li>Check that the in-ear is properly attached to the cable</li>
-                </ul>
-              </li>
-            </ul>
-          </div>
-          
-          <div className="bg-blue-100 p-3 rounded-md mb-4">
-            <p className="font-semibold">For all other technical needs, communicate with your Tech Team.</p>
-          </div>
-          
-          <div className="flex justify-between mt-6">
-            <button 
-              className="bg-gray-500 text-white py-2 px-4 rounded-lg flex items-center hover:bg-gray-600 transition-colors"
-              onClick={() => setActiveTopic('buildingMix')}
-            >
-              Previous
-            </button>
-            <button 
-              className="bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center hover:bg-blue-700 transition-colors"
-              onClick={() => setActiveTab('simulator')}
-            >
-              Try the Simulator
-            </button>
-          </div>
-        </div>
-      )
-    },
-  };
-
-  // Group channels by type for better organization
-  const channelGroups = {
-    vocals: ['vocals', 'leadVocals', 'backgroundVocals'],
-    rhythm: ['drums', 'bass', 'acousticGuitar', 'electricGuitar', 'electricGuitar2'],
-    melodic: ['keys', 'synth'],
-    utility: ['click', 'md', 'tracks', 'percussion']
-  };
-
-  // Enhance the channel labels with emojis for visual cues
-  const channelLabels = {
-    vocals: "🎤 Lead Vocals",
-    click: "🎯 Click Track",
-    md: "🎼 Metronome",
-    drums: "🥁 Drums",
-    bass: "🎸 Bass Guitar",
-    keys: "🎹 Keyboards",
-    keys2: "🎹 Keyboards 2",
-    leadVocals: "🎤 Lead Vocals",
-    backgroundVocals: "🎤 Background Vocals",
-    acousticGuitar: "🪕 Acoustic Guitar",
-    electricGuitar: "🎸 Electric Guitar 1",
-    electricGuitar2: "🎸 Electric Guitar 2",
-    percussion: "🪘 Percussion",
-    synth: "🎛️ Synth",
-    tracks: "💿 Backing Tracks"
-  };
-
-  // Get color for channel based on type
-  const getChannelColor = (channel) => {
-    if (channelGroups.vocals.includes(channel)) return 'blue';
-    if (channelGroups.rhythm.includes(channel)) return 'green';
-    if (channelGroups.melodic.includes(channel)) return 'purple';
-    if (channelGroups.utility.includes(channel)) return 'orange';
-    return 'gray';
-  };
-
-  // Get volume color with improved visual feedback
-  const getVolumeColor = (value) => {
-    if (value > 85) return 'bg-red-500';
-    if (value > 70) return 'bg-yellow-500';
-    if (value > 50) return 'bg-green-500';
-    return 'bg-blue-400';
-  };
-
-  // Determine if channel is clipping
-  const isClipping = (channel) => {
-    return sliderValues[channel] > 85 || 
-      (sliderValues.master > 75 && sliderValues[channel] > 70);
-  };
-  
-  // Add function to handle quiz answers
-  const handleQuizAnswer = (question, answer) => {
-    setQuizAnswers(prev => ({
-      ...prev,
-      [question]: answer
-    }));
-  };
-  
-  // Add function to check quiz answers
-  const checkQuizAnswers = () => {
-    let score = 0;
-    
-    // Correct answers
-    if (quizAnswers.q1 === 'b') score += 1;
-    if (quizAnswers.q2 === 'b') score += 1;
-    if (quizAnswers.q3 === 'b') score += 1;
-    
-    setQuizScore(score);
-    setQuizSubmitted(true);
-  };
-  
   // Add toggle loop function
   const toggleLoop = () => {
-    const wasPlaying = isPlaying;
-    setIsLooping(!isLooping);
-    
-    // Store current time and state before updating loop state
-    const currentTimes = {};
-    const wasPaused = {};
-    Object.entries(audioFiles).forEach(([channel, audio]) => {
-      currentTimes[channel] = audio.currentTime;
-      wasPaused[channel] = audio.paused;
-      // audio.loop = !isLooping; // This line should be removed as loop property is on AudioBufferSourceNode
-    });
-
-    // If audio was playing, ensure it continues playing
-    if (wasPlaying) {
-      const playPromises = Object.entries(audioFiles).map(([channel, audio]) => {
-        // Note: audio here is AudioBuffer, not AudioBufferSourceNode
-        // The actual playback logic for AudioBufferSourceNode is in playPause and startPlayback
-        return Promise.resolve(); // This function should not directly play AudioBuffer
-      });
-
-      Promise.all(playPromises)
-        .then(() => {
-          console.log("All tracks resumed after loop toggle");
-        })
-        .catch(error => {
-          console.error("Error resuming playback after loop toggle:", error);
-          setIsPlaying(false);
-        });
-    }
+    setIsLooping((prev) => !prev);
+    // The actual re-starting of playback with the new loop state
+    // will be handled by playPause or startPlayback when playback resumes.
   };
 
   // Add loading indicator component
@@ -1530,7 +717,7 @@ export default function InEarMonitorApp() {
               </div>
               
               {/* Audio Player Controls - Enhanced with better styling */}
-              {Object.keys(audioFiles).length > 0 && (
+              {Object.keys(audioStems).length > 0 && (
                 <div className="bg-white rounded-lg p-6 shadow-md mb-8 text-gray-800">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-semibold flex items-center">
