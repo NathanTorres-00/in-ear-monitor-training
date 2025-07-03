@@ -125,6 +125,15 @@ export default function InEarMonitorApp() {
   // Add state for loaded stems
   const [audioStems, setAudioStems] = useState({});
 
+  // Re-add learningTopics array
+  const learningTopics = [
+    { id: 'intro', title: 'Introduction', icon: <Info /> },
+    { id: 'equipment', title: 'In-Ear Monitor Basics', icon: <Headphones /> },
+    { id: 'mixing', title: 'Mixing Fundamentals', icon: <Sliders /> },
+    { id: 'buildingMix', title: 'Building a Good Mix', icon: <Volume2 /> },
+    { id: 'troubleshooting', title: 'Troubleshooting', icon: <HelpCircle /> },
+  ];
+
   // Function to load stems for selected track
   const loadStems = async (track) => {
     if (!audioContext.current) return;
